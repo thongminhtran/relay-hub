@@ -9,7 +9,8 @@
 #>
 param(
     [Parameter(Mandatory = $true)] [string] $BudgetEmail,
-    [string] $Location = "canadacentral",
+    [string] $Location = "canadaeast",
+    [string] $SqlLocation = "canadacentral",
     [string] $ResourceGroup = "rg-relayhub",
     [string] $Repo = "thongminhtran/relay-hub",
     [string] $GitHubAppName = "relayhub-github-deploy",
@@ -21,14 +22,14 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 function Invoke-Az {
-    param([string[]] $Args)
+    param([string[]] $AzArgs)
     # stdout only: az prints welcome banners / warnings on stderr, which would corrupt JSON output.
     $errFile = Join-Path $env:TEMP ("relayhub-az-" + [guid]::NewGuid().ToString("N") + ".log")
-    $out = & az @Args 2> $errFile
+    $out = & az @AzArgs 2> $errFile
     $code = $LASTEXITCODE
     $err = if (Test-Path $errFile) { Get-Content $errFile -Raw; Remove-Item $errFile -ErrorAction SilentlyContinue } else { "" }
-    if ($code -ne 0) { throw "az $($Args -join ' ') failed:`n$err" }
-    return $out
+    if ($code -ne 0) { throw "az $($AzArgs -join ' ') failed:`n$err" }
+    return (@($out) -join "`n")   # one string, so ConvertFrom-Json sees the whole document
 }
 function New-RandomSecret([int] $bytes) {
     $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
@@ -46,7 +47,7 @@ $tenant = $account.tenantId
 # ---- 1. resource group + budget ----
 Invoke-Az @("group", "create", "-n", $ResourceGroup, "-l", $Location, "--tags", "project=relayhub", "-o", "none") | Out-Null
 Write-Host "Resource group $ResourceGroup ready in $Location"
-Invoke-Az @("deployment", "sub", "create", "-l", $Location, "-n", "relayhub-budget", "-f", "infra/budget.bicep",
+Invoke-Az @("deployment", "sub", "create", "-l", $Location, "-n", "relayhub-budget-$Location", "-f", "infra/budget.bicep",
             "-p", "contactEmail=$BudgetEmail", "amount=$BudgetAmount", "-o", "none") | Out-Null
 Write-Host "Budget alert: $BudgetAmount/month -> $BudgetEmail"
 
@@ -61,6 +62,7 @@ $deployerId = Invoke-Az @("ad", "signed-in-user", "show", "--query", "id", "-o",
 $env:SQL_ADMIN_PASSWORD = $sqlPassword
 $env:API_KEY_MASTER_KEY = $masterKey
 $env:DEPLOYER_OBJECT_ID = "$deployerId".Trim()
+$env:SQL_LOCATION = $SqlLocation
 Write-Host "Deploying infra/main.bicep (3-6 minutes; the SQL server takes longest)..."
 $outputs = Invoke-Az @("deployment", "group", "create", "-g", $ResourceGroup, "-n", "relayhub-main", "-f", "infra/main.bicep",
                        "-p", "infra/main.bicepparam", "--query", "properties.outputs", "-o", "json") | ConvertFrom-Json
@@ -71,7 +73,9 @@ Write-Host "Key Vault:   $($outputs.keyVaultName.value)"
 # ---- 4. GitHub Actions identity (OIDC, no stored Azure secrets) ----
 $appId = (Invoke-Az @("ad", "app", "list", "--display-name", $GitHubAppName, "--query", "[0].appId", "-o", "tsv") | Out-String).Trim()
 if (-not $appId) { $appId = (Invoke-Az @("ad", "app", "create", "--display-name", $GitHubAppName, "--query", "appId", "-o", "tsv") | Out-String).Trim() }
-$spId = (& az ad sp show --id $appId --query id -o tsv 2>$null | Out-String).Trim()
+# PS 5.1 turns native stderr into a terminating error under ErrorActionPreference=Stop; "not found" is expected here.
+$spId = ""
+try { $prev = $ErrorActionPreference; $ErrorActionPreference = "Continue"; $spId = (& az ad sp show --id $appId --query id -o tsv 2>$null | Out-String).Trim() } catch { $spId = "" } finally { $ErrorActionPreference = $prev }
 if (-not $spId) { $spId = (Invoke-Az @("ad", "sp", "create", "--id", $appId, "--query", "id", "-o", "tsv") | Out-String).Trim() }
 $scope = "/subscriptions/$sub/resourceGroups/$ResourceGroup"
 foreach ($role in @("Contributor", "Role Based Access Control Administrator")) {

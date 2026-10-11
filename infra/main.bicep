@@ -13,6 +13,9 @@ param location string = resourceGroup().location
 @description('Environment suffix, e.g. prod.')
 param env string = 'prod'
 
+@description('Region for the SQL server. Free-trial subscriptions are refused SQL servers in some regions (Canada East on 2026-10-11), while App Service F1 quota is 0 in others (Canada Central). Mixing is fine: ~10 ms between the Canadian regions.')
+param sqlLocation string = location
+
 @description('SQL administrator login (SQL auth is a Week 1 stop-gap; Entra-only auth with Managed Identity arrives in Week 2).')
 param sqlAdminLogin string = 'relayhubadmin'
 
@@ -28,11 +31,13 @@ param apiKeyMasterKey string
 param deployerObjectId string = ''
 
 var suffix = toLower('${appName}-${env}')
+// Key Vault, storage and SQL server names are globally unique across all of Azure: add a stable per-subscription suffix.
+var unique = take(uniqueString(subscription().subscriptionId, resourceGroup().id), 6)
 var tags = { project: 'relayhub', env: env, 'cost-center': 'free-tier' }
 
 // ---------- Monitoring (free: 5 GB/month; capped at 0.1 GB/day) ----------
 resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: 'log-${suffix}'
+  name: 'log-${suffix}-${unique}' // workspace names stay reserved for 14 days after deletion (soft delete)
   location: location
   tags: tags
   properties: {
@@ -56,7 +61,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ---------- Secrets ----------
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: 'kv-${suffix}'
+  name: 'kv-${appName}-${unique}'
   location: location
   tags: tags
   properties: {
@@ -85,8 +90,8 @@ resource secretMasterKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 
 // ---------- Data: Azure SQL free offer (serverless, auto-pause until next month when the free limit is used up) ----------
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: 'sql-${suffix}'
-  location: location
+  name: 'sql-${suffix}-${unique}'
+  location: sqlLocation
   tags: tags
   properties: {
     administratorLogin: sqlAdminLogin
@@ -105,7 +110,7 @@ resource sqlAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' 
 resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: 'relayhub'
-  location: location
+  location: sqlLocation
   tags: tags
   sku: { name: 'GP_S_Gen5', tier: 'GeneralPurpose', family: 'Gen5', capacity: 2 }
   properties: {
@@ -121,7 +126,7 @@ resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
 
 // ---------- Messaging: Storage account + queues (Week 2 worker) ----------
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: toLower(replace('st${appName}${env}', '-', ''))
+  name: toLower(replace('st${appName}${unique}', '-', ''))
   location: location
   tags: tags
   sku: { name: 'Standard_LRS' }
@@ -159,7 +164,7 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 resource api 'Microsoft.Web/sites@2023-12-01' = {
-  name: 'app-${suffix}-api'
+  name: 'app-${suffix}-api-${unique}'
   location: location
   tags: tags
   kind: 'app,linux'

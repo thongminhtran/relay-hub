@@ -8,7 +8,7 @@ Windows: `.\infra\bootstrap.ps1 -BudgetEmail <you>` does everything below (idemp
 
 ```bash
 az account show --query '{name:name,id:id}'                      # confirm the right subscription
-LOCATION=canadacentral                                            # SQL free offer must be available in the region
+LOCATION=canadaeast      # F1 quota was 0 in canadacentral on the free trial; canadaeast works
 az group create -n rg-relayhub -l $LOCATION --tags project=relayhub
 
 # budget alert first — it is the safety net

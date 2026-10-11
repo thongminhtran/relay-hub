@@ -53,7 +53,12 @@ Question bank to grow over time: `docs/interview-questions.md` (create it on fir
 
 - Free-trial subscription "Azure subscription 1" created 2026-10-11 on tminhthong1999@hotmail.com ($200 credit, spending limit on).
 - **Upgrade to pay-as-you-go before 2026-11-10**, otherwise Azure disables the subscription and the live demo dies. Free tiers stay $0 after the upgrade; the $5 budget alert emails Tim.
-- Resources live in resource group `rg-relayhub` (canadacentral), created by `infra/bootstrap.ps1`. Never create resources by hand in the portal; change `infra/main.bicep` and redeploy.
+- Resources live in resource group `rg-relayhub`, created by `infra/bootstrap.ps1` on 2026-10-11. Never create resources by hand in the portal; change `infra/main.bicep` and redeploy.
+  - App Service F1 `app-relayhub-prod-api-s4w2qp` (canadaeast) → https://app-relayhub-prod-api-s4w2qp.azurewebsites.net (docs at `/docs`)
+  - Azure SQL free offer `sql-relayhub-prod-s4w2qp` / db `relayhub` (canadacentral — the free trial refused SQL servers in Canada East and App Service F1 quota was 0 in Canada Central, so the two regions are mixed on purpose)
+  - Key Vault `kv-relayhub-s4w2qp` (connection string + API-key master key), storage `strelayhubs4w2qp` (queues `incoming`, `deliveries`), Log Analytics `log-relayhub-prod-s4w2qp` + App Insights `appi-relayhub-prod`
+  - GitHub Actions deploys through app registration `relayhub-github-deploy` (OIDC federated credential on `main`); repo variables `AZURE_CLIENT_ID/TENANT_ID/SUBSCRIPTION_ID`, repo secrets `SQL_ADMIN_PASSWORD`, `API_KEY_MASTER_KEY`.
+  - Budget `budget-relayhub`: $5/month, alerts to tminhthong1999@hotmail.com.
 
 ## Environment notes
 
