@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.swp
+TestResults/
+# Node
+node_modules/
+dist/
+*.local
+# Local settings and secrets
+appsettings.Local.json
+local.settings.json
+.env
+.env.*
+# OS / editors
+.DS_Store
+Thumbs.db
+~$*
+# Docs build cache
+docs/plan-src/chrome-profile/
+
+# stray npm cache dirs
+_cacache/
+_update-notifier-last-checked
+_npx/
+
+# v1 plan kept locally only
+docs/RelayHub-Project-Plan.docx
+docs/architecture-v1.png

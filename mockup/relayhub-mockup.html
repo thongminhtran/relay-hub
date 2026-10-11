@@ -1,0 +1,1460 @@
+<title>RelayHub Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  /* Layout: switchboard. Public landing page first, then an app shell (nav rail, inbox list, message detail) with a pipeline strip that lights up as each message moves through Azure. */
+  --bg:#F3F6FA;
+  --surface:#FFFFFF;
+  --surface-2:#EAF0F6;
+  --line:#D7DFEA;
+  --line-strong:#B8C4D3;
+  --ink:#0D1626;
+  --muted:#556276;
+  --faint:#7F8CA0;
+  --accent:#1260CC;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E1EBFA;
+  --fresh:rgba(18,96,204,.20);
+  --data:#B0620A;
+  --ok:#147545; --ok-soft:#DDF2E5;
+  --warn:#975700; --warn-soft:#FFEFD1;
+  --bad:#BE3226; --bad-soft:#FBE4E1;
+  --ig:#C42E6B; --fb:#1A6BDB; --wa:#13834A; --form:#0D7880; --stripe:#5A50E0;
+  --on-chan:#FFFFFF;
+  --shadow:0 1px 2px rgba(13,22,38,.06),0 10px 28px rgba(13,22,38,.07);
+  --tour-bg:#0D1626; --tour-ink:#E6EDF7; --tour-muted:#98A7BD; --tour-line:#2A3A54; --tour-accent:#8AB8FF; --tour-ok:#2E9E63;
+  --chat-bg:#2B2D31; --chat-panel:#1F2023; --chat-ink:#E3E5E8; --chat-muted:#9BA1AB; --chat-bot:#5865F2;
+  --code-bg:#0F1828; --code-line:#22314A; --code-ink:#D5E1F1; --code-key:#8CC4FF; --code-str:#9FE0B4; --code-num:#F5C27A; --code-mute:#7F8DA3; --code-err:#FF8E85;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Figtree","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r-sm:6px; --r:10px; --r-lg:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1019; --surface:#111A27; --surface-2:#172235; --line:#223047; --line-strong:#34455F;
+    --ink:#E6ECF5; --muted:#9AA8BC; --faint:#7686A0;
+    --accent:#6AA6FF; --accent-ink:#071222; --accent-soft:#14284A; --fresh:rgba(106,166,255,.22);
+    --data:#F2A649; --ok:#52CC8E; --ok-soft:#0F2E1E; --warn:#F2B54E; --warn-soft:#33260E; --bad:#FF7D72; --bad-soft:#3A1613;
+    --ig:#D93C7B; --fb:#2F7BEA; --wa:#1E9A57; --form:#15919A; --stripe:#6E66F2;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);
+    --tour-bg:#16233A; --tour-line:#2C3D5C;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1019; --surface:#111A27; --surface-2:#172235; --line:#223047; --line-strong:#34455F;
+  --ink:#E6ECF5; --muted:#9AA8BC; --faint:#7686A0;
+  --accent:#6AA6FF; --accent-ink:#071222; --accent-soft:#14284A; --fresh:rgba(106,166,255,.22);
+  --data:#F2A649; --ok:#52CC8E; --ok-soft:#0F2E1E; --warn:#F2B54E; --warn-soft:#33260E; --bad:#FF7D72; --bad-soft:#3A1613;
+  --ig:#D93C7B; --fb:#2F7BEA; --wa:#1E9A57; --form:#15919A; --stripe:#6E66F2;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.35);
+  --tour-bg:#16233A; --tour-line:#2C3D5C;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{color:var(--ink);font:400 14.5px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+ul,ol{margin:0;padding:0;list-style:none}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.bad-c{color:var(--bad)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.logo{width:26px;height:26px;color:var(--accent);flex:none}
+.h2{font:700 18px/1.2 var(--f-display);letter-spacing:-.01em}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:var(--r-sm);padding:8px 14px;font-weight:600;font-size:14px;line-height:1.2;white-space:nowrap;transition:background-color .15s,border-color .15s,filter .15s}
+.btn:hover{background:var(--surface-2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{background:var(--accent);filter:brightness(1.1)}
+.btn-quiet{border-color:transparent;background:transparent}
+.btn-sm{padding:5px 10px;font-size:13px}
+.btn-lg{padding:12px 20px;font-size:15.5px}
+.btn:disabled{opacity:.5}
+.btn .i{width:15px;height:15px}
+
+/* channel glyphs and pills */
+.glyph{flex:none;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;font:700 10.5px/1 var(--f-mono);letter-spacing:.02em;color:var(--on-chan)}
+.g-instagram{background:var(--ig)}.g-facebook{background:var(--fb)}.g-whatsapp{background:var(--wa)}.g-form{background:var(--form)}.g-stripe{background:var(--stripe)}
+.g-add{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line-strong);font-size:15px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.4}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.pill-ok{background:var(--ok-soft);color:var(--ok)}
+.pill-warn{background:var(--warn-soft);color:var(--warn)}
+.pill-bad{background:var(--bad-soft);color:var(--bad)}
+.pill-info{background:var(--accent-soft);color:var(--accent)}
+.pill-mute{background:var(--surface-2);color:var(--muted)}
+
+/* mockup tour bar */
+.tour{background:var(--tour-bg);color:var(--tour-ink);padding:10px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;font-size:13px}
+.tour-label{font:600 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--tour-muted)}
+.tour-steps{display:flex;flex-wrap:wrap;gap:6px}
+.tour-step{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--tour-line);background:transparent;color:var(--tour-muted);border-radius:999px;padding:3px 11px 3px 4px;font-size:12.5px;font-weight:500}
+.tour-step:hover{border-color:var(--tour-accent);color:var(--tour-ink)}
+.tour-step .n{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font:600 11px/1 var(--f-mono);background:var(--tour-line);color:var(--tour-ink)}
+.tour-step .n .i{width:12px;height:12px;stroke-width:3}
+.tour-step.is-done{color:var(--tour-ink)}
+.tour-step.is-done .n{background:var(--tour-ok);color:var(--on-chan)}
+.tour-step.is-current{color:var(--tour-ink);border-color:var(--tour-accent)}
+.tour-step.is-current .n{background:var(--tour-accent);color:var(--tour-bg)}
+.tour-hint{flex:1 1 300px;min-width:0;color:var(--tour-ink);line-height:1.45}
+.tour-hint b{color:var(--tour-accent);font-weight:600}
+.tour-btn{border:1px solid var(--tour-line);background:transparent;color:var(--tour-ink);border-radius:6px;padding:4px 10px;font-size:12.5px}
+.tour-btn:hover{border-color:var(--tour-accent)}
+.tour-meta{color:var(--tour-muted);font-size:12.5px}
+
+/* landing */
+.landing{max-width:1160px;margin:0 auto;padding-inline:clamp(16px,4vw,40px)}
+.l-nav{display:flex;align-items:center;gap:12px 20px;padding-block:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:9px;font:700 20px/1 var(--f-display);letter-spacing:-.01em;color:var(--ink)}
+.l-links{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+.l-links button{background:none;border:0;padding:6px 10px;border-radius:6px;color:var(--muted);font-weight:500}
+.l-links button:hover{color:var(--ink);background:var(--surface-2)}
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:clamp(28px,5vw,64px);align-items:center;padding-block:clamp(24px,5vw,64px) clamp(40px,6vw,80px)}
+.eyebrow{font:600 12px/1.2 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.hero h1{font:700 clamp(34px,5.2vw,58px)/1.03 var(--f-display);letter-spacing:-.028em;margin-top:16px}
+.lede{font-size:clamp(16px,1.6vw,18px);color:var(--muted);max-width:56ch;margin-top:18px;line-height:1.6}
+.hero-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:28px}
+.hero-note{margin-top:14px;font-size:13px;color:var(--faint)}
+.live-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.live-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:13px}
+.live-dot{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-weight:600;font-size:12px}
+.live-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);animation:ping 2s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 var(--ok-soft)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.live-rows{padding-block:4px}
+.live-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 16px}
+.live-row + .live-row{border-top:1px solid var(--line)}
+.live-row .glyph{grid-row:1/3}
+.live-row .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-row .tm{font-size:12px;color:var(--faint);white-space:nowrap}
+.live-row .tx{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.live-row .rt{display:inline-flex;align-items:center;gap:4px;font:500 11.5px var(--f-mono);color:var(--ok);white-space:nowrap}
+.live-row .rt .i{width:13px;height:13px;stroke-width:2.6}
+.live-row.enter{animation:rowin .55s ease-out}
+@keyframes rowin{from{opacity:0;transform:translateY(-6px);background:var(--fresh)}to{opacity:1;transform:none}}
+.live-foot{border-top:1px solid var(--line);padding:10px 16px;font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px;background:var(--surface-2)}
+.l-sec{padding-block:clamp(44px,6vw,72px);border-top:1px solid var(--line)}
+.l-sec h2{font:700 clamp(25px,3vw,34px)/1.12 var(--f-display);letter-spacing:-.018em;max-width:26ch;margin-top:10px}
+.l-sec .sub{color:var(--muted);margin-top:12px;max-width:64ch;font-size:16px;line-height:1.6}
+.l-pipe{margin-top:28px}
+.l-pipe .node{padding:14px}
+.l-pipe .desc{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.5}
+.feat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:28px}
+.feat article{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px}
+.feat .tag{display:block;font:600 11.5px var(--f-mono);color:var(--accent);margin-bottom:10px}
+.feat h3{font:700 18px/1.2 var(--f-display)}
+.feat p{color:var(--muted);margin-top:6px;font-size:14px;line-height:1.55}
+.stack{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px;margin-top:28px}
+.stack h3{font:600 11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.stack ul{display:flex;flex-wrap:wrap;gap:6px}
+.stack li{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 9px;font-size:13px;font-weight:500}
+.stack-note{margin-top:22px;color:var(--muted);font-size:14px}
+.cta-band{margin-block:8px 36px;background:var(--ink);color:var(--bg);border-radius:var(--r-lg);padding:clamp(24px,4vw,40px);display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
+.cta-band h2{font:700 clamp(22px,3vw,30px)/1.15 var(--f-display);letter-spacing:-.015em}
+.cta-band p{opacity:.75;margin-top:6px}
+.l-foot{padding-block:22px 32px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between}
+
+/* pipeline (landing + app) */
+.pipe{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.node{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;min-width:0;transition:border-color .25s,background-color .25s,box-shadow .25s}
+.node:not(:last-child)::after{content:"";position:absolute;top:50%;right:-13px;width:12px;height:2px;background:var(--line-strong)}
+.node .k{display:block;font:600 10.5px/1 var(--f-mono);color:var(--faint);letter-spacing:.07em;text-transform:uppercase}
+.node .nm{display:block;font-weight:700;font-size:14.5px;margin-top:7px}
+.node .svc{display:block;font-size:12px;color:var(--muted);line-height:1.35;margin-top:2px}
+.node .note{display:block;font:500 11.5px/1.4 var(--f-mono);margin-top:8px;color:var(--muted);min-height:1.4em;overflow-wrap:anywhere}
+.node.is-active{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--fresh)}
+.node.is-active .k,.node.is-done .k,.node.is-active .note,.node.is-done .note{color:var(--accent)}
+.node.is-done{border-color:var(--accent)}
+.node.is-done:not(:last-child)::after,.node.is-active:not(:last-child)::after{background:var(--accent)}
+.node.is-ok{border-color:var(--ok);background:var(--ok-soft)}
+.node.is-ok .k,.node.is-ok .note{color:var(--ok)}
+.node.is-wait{border-color:var(--warn);background:var(--warn-soft)}
+.node.is-wait .k,.node.is-wait .note{color:var(--warn)}
+.node.is-fail{border-color:var(--bad);background:var(--bad-soft)}
+.node.is-fail .k,.node.is-fail .note{color:var(--bad)}
+
+/* waking screen */
+.wake{min-height:62vh;display:grid;place-items:center;padding-block:40px;padding-inline:16px}
+.wake-card{width:min(540px,100%);background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:26px;display:flex;flex-direction:column;gap:10px}
+.wake-card h1{font:700 24px/1.15 var(--f-display);letter-spacing:-.015em}
+.wake-card .muted{font-size:14px}
+.wake-steps{margin:10px 0 4px;display:flex;flex-direction:column;gap:12px}
+.wk{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:12px;align-items:center;color:var(--faint)}
+.wk b{display:block;font-weight:600;font-size:14px}
+.wk small{display:block;font:12px var(--f-mono);overflow-wrap:anywhere}
+.wk .ic{width:18px;height:18px;border-radius:50%;border:2px solid var(--line-strong);display:grid;place-items:center}
+.wk .ic .i{width:12px;height:12px;stroke-width:3;opacity:0}
+.wk.is-active{color:var(--ink)}
+.wk.is-active .ic{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+.wk.is-done{color:var(--ink)}
+.wk.is-done .ic{background:var(--ok);border-color:var(--ok);color:var(--on-chan)}
+.wk.is-done .ic .i{opacity:1}
+.wk .t{font:500 12px var(--f-mono);color:var(--ok)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.wake-card .btn{align-self:flex-start}
+
+/* app shell */
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);align-items:start}
+.rail{position:sticky;top:0;min-height:100vh;background:var(--surface);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:18px}
+.ws{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface-2)}
+.ws b{display:block;font-size:13.5px}
+.ws span{display:block;font-size:12px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px 10px;border-radius:var(--r-sm);color:var(--muted);font-weight:500;font-size:14px;text-align:left}
+.nav button:hover{background:var(--surface-2);color:var(--ink)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .count{margin-left:auto;font:600 11.5px var(--f-mono);color:var(--faint)}
+.nav .count.bad{background:var(--bad);color:var(--on-chan);border-radius:999px;padding:1px 7px}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.who{display:flex;gap:10px;align-items:center;font-size:13px}
+.who b{display:block;font-weight:600}
+.who span{display:block;color:var(--muted);font-size:12px}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;font:600 11px var(--f-mono);flex:none}
+.rail-btns{display:flex;gap:6px;flex-wrap:wrap}
+.main{min-width:0;padding:22px clamp(16px,2.4vw,32px) 48px;display:flex;flex-direction:column;gap:16px}
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px}
+.page-head h1{font:700 27px/1.1 var(--f-display);letter-spacing:-.018em}
+.page-head .desc{color:var(--muted);margin-top:6px;max-width:70ch}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ok);font-weight:600;margin-top:6px}
+.live::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);animation:ping 2s infinite}
+.search{flex:0 1 320px;min-width:0}
+.input{width:100%;min-width:0;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r-sm);padding:8px 11px;font-size:14px}
+.input:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.stat{display:inline-flex;align-items:baseline;gap:7px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:5px 14px;font-size:13px;color:var(--muted)}
+.stat b{font:600 14.5px var(--f-mono);color:var(--ink)}
+.stat.ok b{color:var(--ok)}.stat.warn b{color:var(--warn)}.stat.bad b{color:var(--bad)}
+
+/* simulator */
+.sim{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,330px);gap:16px}
+.sim-ctrl{display:flex;flex-direction:column;gap:14px;min-width:0}
+.sim-head h2{font:700 17px/1.2 var(--f-display)}
+.sim-head p{color:var(--muted);font-size:13px;margin-top:3px;max-width:70ch}
+.sim-btns{display:flex;flex-wrap:wrap;gap:8px}
+.sim-btn{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--r);padding:5px 14px 5px 5px;font-weight:600;font-size:13.5px}
+.sim-btn:hover{border-color:var(--accent);background:var(--accent-soft)}
+.sim-btn .glyph{width:26px;height:26px}
+.own label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:6px}
+.own-row{display:flex;gap:8px}
+.field-err{color:var(--bad);font-size:12.5px;margin-top:6px}
+.switch{display:flex;align-items:flex-start;gap:11px;cursor:pointer;padding:10px 12px;border:1px dashed var(--line-strong);border-radius:var(--r);transition:background-color .2s,border-color .2s}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .track{flex:none;width:38px;height:22px;border-radius:999px;background:var(--line-strong);position:relative;transition:background-color .2s}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:transform .2s}
+.switch input:checked + .track{background:var(--bad)}
+.switch input:checked + .track::after{transform:translateX(16px)}
+.switch input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:2px}
+.switch b{display:block;font-size:13.5px}
+.switch small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.switch.is-on{border-style:solid;border-color:var(--bad);background:var(--bad-soft)}
+.switch.flash{animation:flash .6s 4}
+@keyframes flash{50%{box-shadow:0 0 0 5px var(--fresh)}}
+.pipe-wrap{grid-column:1/-1;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.pipe-cap{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:13px;color:var(--muted)}
+.pipe-cap b{color:var(--ink);font-size:13.5px}
+
+/* discord preview */
+.dc{background:var(--chat-bg);color:var(--chat-ink);border-radius:var(--r);padding:12px 12px 14px;display:flex;flex-direction:column;gap:12px;min-width:0;font-size:13px;align-self:start}
+.dc-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:600}
+.dc-head span{color:var(--chat-muted);font-weight:500;font-size:11.5px}
+.dc-post{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px}
+.dc-av{width:32px;height:32px;border-radius:50%;background:var(--chat-bot);display:grid;place-items:center;font:700 11px var(--f-mono);color:var(--on-chan)}
+.dc-meta{display:flex;flex-wrap:wrap;gap:2px 7px;align-items:baseline;font-size:11.5px;color:var(--chat-muted)}
+.dc-meta b{color:var(--chat-ink);font-weight:600;font-size:13px}
+.dc-tag{background:var(--chat-bot);color:var(--on-chan);font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:3px}
+.dc-chan{font-family:var(--f-mono)}
+.dc-embed{margin-top:5px;background:var(--chat-panel);border-left:3px solid var(--c);border-radius:4px;padding:8px 10px;min-width:0}
+.dc-embed .et{font-weight:700;font-size:12.5px}
+.dc-embed .eb{font-size:12.5px;margin-top:2px;overflow-wrap:anywhere}
+.dc-embed .ef{color:var(--chat-muted);font:11px/1.4 var(--f-mono);margin-top:6px;overflow-wrap:anywhere}
+.dc-empty{color:var(--chat-muted);font-size:12.5px}
+
+/* inbox list + detail */
+.inbox{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:16px;align-items:start}
+.list-col{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;min-width:0}
+.filters{display:flex;gap:6px;padding:10px;border-bottom:1px solid var(--line);overflow-x:auto}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:500;white-space:nowrap;color:var(--muted)}
+.chip span{color:var(--faint);font-family:var(--f-mono);font-size:11px;margin-left:2px}
+.chip:hover{border-color:var(--line-strong);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.chip[aria-pressed="true"] span{color:inherit;opacity:.7}
+.list{max-height:700px;overflow:auto}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:3px 12px;padding:12px 14px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);color:inherit}
+.list li:last-child .row{border-bottom:0}
+.row:hover{background:var(--surface-2)}
+.row[aria-current="true"]{background:var(--accent-soft)}
+.row .glyph{grid-row:1/span 3;align-self:start}
+.row .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .tm{font-size:12px;color:var(--faint);white-space:nowrap}
+.row .tx{grid-column:2/4;color:var(--muted);font-size:13px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row .st{grid-column:2/4;display:flex;gap:8px;align-items:center;margin-top:5px;min-width:0}
+.row .to{font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{padding:28px 18px;color:var(--muted);text-align:center;font-size:13.5px}
+.detail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);min-width:0;overflow:hidden}
+.d-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.back{display:none;align-items:center;gap:4px;border:0;background:none;color:var(--accent);font-weight:600;padding:2px 0;flex-basis:100%}
+.d-who{display:flex;gap:12px;align-items:center;min-width:0}
+.d-who .glyph{width:40px;height:40px;border-radius:10px;font-size:12.5px}
+.d-who h2{font:700 19px/1.2 var(--f-display)}
+.d-who p{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.d-meta{display:flex;gap:10px;align-items:center}
+.tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{border:0;background:none;padding:11px 10px;font-size:13.5px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+.tab .tb{font:500 11px var(--f-mono);color:var(--faint);margin-left:3px}
+.tab-body{padding:18px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.thread{display:flex;flex-direction:column;gap:10px}
+.bubble{max-width:min(540px,88%);padding:10px 14px;border-radius:14px;font-size:14.5px;line-height:1.5;overflow-wrap:anywhere}
+.bubble.in{background:var(--surface-2);border-top-left-radius:4px;align-self:flex-start}
+.bubble.out{background:var(--accent);color:var(--accent-ink);border-top-right-radius:4px;align-self:flex-end}
+.bubble .bt{display:block;font-size:11.5px;margin-top:4px;opacity:.75}
+.composer{border:1px solid var(--line-strong);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--fresh)}
+.composer textarea{border:0;background:transparent;resize:vertical;min-height:56px;font-size:14px;outline:none;width:100%}
+.composer textarea:disabled{opacity:.6}
+.composer-foot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+.composer-foot span{flex:1 1 240px;min-width:0}
+.kv{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:12.5px;color:var(--muted)}
+.kv code{color:var(--ink);background:var(--surface-2);padding:2px 6px;border-radius:4px;overflow-wrap:anywhere}
+.policy{font-size:12.5px;color:var(--muted);line-height:1.5}
+.pay{border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;display:flex;flex-direction:column;gap:4px}
+.pay .pk{font:500 12px var(--f-mono);color:var(--faint)}
+.pay .amt{font:700 30px/1.1 var(--f-display);letter-spacing:-.02em}
+.pay .amt small{font-size:15px;color:var(--muted);font-weight:600}
+.dl{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.dl-head{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:10px 14px;background:var(--surface-2)}
+.dl-head b{font-size:14px}
+.dl-head .tg{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.dl-head .sp{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.attempts{padding:4px 14px 8px}
+.att{display:grid;grid-template-columns:34px 104px minmax(0,1fr) auto;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font:12.5px/1.4 var(--f-mono);align-items:center}
+.att:last-child{border-bottom:0}
+.att .ok-c{color:var(--ok)}
+.att .bad-c{color:var(--bad)}
+.att.next{color:var(--warn)}
+.att .rp{color:var(--accent)}
+.h-sm{font:600 11.5px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+
+/* code */
+.codeblock{background:var(--code-bg);color:var(--code-ink);border-radius:var(--r);overflow:hidden;min-width:0}
+.cb-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--code-line);font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--code-mute)}
+.codeblock pre{margin:0;padding:12px 14px;overflow-x:auto;font:12.5px/1.6 var(--f-mono);white-space:pre;color:var(--code-ink)}
+.cb-foot{display:flex;flex-wrap:wrap;gap:4px 16px;padding:9px 14px;border-top:1px solid var(--code-line);font:12px/1.5 var(--f-mono);color:var(--code-mute)}
+.j-k{color:var(--code-key)}.j-s{color:var(--code-str)}.j-n{color:var(--code-num)}.j-c{color:var(--code-mute)}
+.ok-t{color:var(--code-str)}.bad-t{color:var(--code-err)}
+
+/* trace waterfall */
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.wf-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.wf{display:flex;flex-direction:column;gap:6px;min-width:560px}
+.wf-row,.wf-axis{display:grid;grid-template-columns:220px minmax(0,1fr) 62px;gap:12px;align-items:center}
+.wf-row .lb{font:12px/1.3 var(--f-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-row .lb small{display:block;color:var(--faint);font-size:10.5px}
+.wf-row.child .lb{padding-left:14px}
+.wf-track{position:relative;height:16px;background:var(--surface-2);border-radius:3px}
+.wf-bar{position:absolute;top:2px;bottom:2px;border-radius:2px;min-width:3px}
+.svc-compute{background:var(--accent)}.svc-data{background:var(--data)}.svc-ext{background:var(--ok)}.svc-ext.fail{background:var(--bad)}
+.wf-row .ms{text-align:right;font:12px var(--f-mono);color:var(--muted)}
+.wf-axis .ax{display:flex;justify-content:space-between;font:11px var(--f-mono);color:var(--faint);border-top:1px solid var(--line);padding-top:4px}
+
+/* tables, cards, banners */
+.table-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:760px}
+th{text-align:left;font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+td code{overflow-wrap:anywhere}
+.link-row{display:flex;gap:10px;align-items:flex-start;border:0;background:none;text-align:left;padding:0;color:inherit}
+.link-row b{display:block;font-weight:600}
+.link-row .muted{display:block;font-size:12.5px}
+.link-row:hover b{color:var(--accent);text-decoration:underline}
+.banner{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:var(--r);border:1px solid var(--bad);background:var(--bad-soft)}
+.banner.ok{border-color:var(--ok);background:var(--ok-soft)}
+.empty-card{background:var(--surface);border:1px dashed var(--line-strong);border-radius:var(--r-lg);padding:24px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.empty-card p{color:var(--muted);max-width:60ch}
+.hist{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);margin-top:10px}
+.hist li{display:flex;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+.hist li > span:nth-child(2){flex:1;min-width:0}
+.hist b{display:block;font-weight:600;font-size:13.5px}
+.hist .muted{font-size:12.5px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head > div{flex:1;min-width:0}
+.card-head h3{font-size:15px;font-weight:700}
+.card-head p{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.kvs{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 16px;font-size:13px;margin:0}
+.kvs dt{color:var(--muted)}
+.kvs dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.card-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:auto}
+.locked{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted)}
+.locked .i{width:15px;height:15px;margin-top:1px}
+.card .switch{flex:1 1 220px}
+.sec{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.facts{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
+.facts dt{font:600 10.5px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.facts dd{margin:3px 0 0;font-size:13.5px}
+
+/* api console */
+.api{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:16px;align-items:start}
+.api-list{padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);display:flex;flex-direction:column;gap:2px}
+.ep{display:grid;grid-template-columns:50px minmax(0,1fr);gap:3px 10px;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:var(--r-sm);color:inherit}
+.ep:hover{background:var(--surface-2)}
+.ep[aria-current="true"]{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-strong)}
+.ep[aria-current="true"] .p{color:var(--accent)}
+.ep .m{font:700 10.5px/1 var(--f-mono);padding:5px 0;border-radius:4px;text-align:center;align-self:start}
+.m-GET{background:var(--ok-soft);color:var(--ok)}.m-POST{background:var(--accent-soft);color:var(--accent)}.m-PUT{background:var(--warn-soft);color:var(--warn)}
+.ep .p{font:500 12.5px/1.4 var(--f-mono);overflow-wrap:anywhere}
+.ep .d{grid-column:2;font-size:12.5px;color:var(--muted)}
+.console{display:flex;flex-direction:column;gap:12px;min-width:0}
+
+/* toasts */
+.toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:60;width:min(370px,calc(100vw - 32px));pointer-events:none}
+.toast{pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:10px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px;animation:tin .25s ease-out}
+.toast::before{content:"";grid-row:1/3;width:8px;height:8px;border-radius:50%;margin-top:6px;background:var(--accent)}
+.toast.ok::before{background:var(--ok)}.toast.bad::before{background:var(--bad)}.toast.warn::before{background:var(--warn)}
+.toast b{font-weight:600}
+.toast span{color:var(--muted);overflow-wrap:anywhere}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* responsive */
+@media (max-width:1279px){
+  .sim .pipe{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .sim .node::after{display:none}
+}
+@media (max-width:1099px){
+  .sim{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:999px){
+  .inbox{grid-template-columns:minmax(0,1fr)}
+  .inbox.show-detail .list-col{display:none}
+  .inbox:not(.show-detail) .detail{display:none}
+  .back{display:inline-flex}
+  .list{max-height:none}
+  .api{grid-template-columns:minmax(0,1fr)}
+  .l-pipe{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .l-pipe .node::after{display:none}
+  .stack{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:899px){
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;min-height:0;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px;gap:10px;flex-direction:row;flex-wrap:wrap;align-items:center}
+  .rail .ws,.rail .who{display:none}
+  .nav{flex-direction:row;overflow-x:auto;width:100%;order:3;gap:4px;padding-bottom:2px}
+  .nav button{width:auto;white-space:nowrap;flex:none}
+  .rail-foot{margin:0 0 0 auto}
+  .cards{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:700px){
+  .feat{grid-template-columns:minmax(0,1fr)}
+  .l-links{display:none}
+  .l-nav .btn{margin-left:auto}
+}
+@media (max-width:560px){
+  .pipe,.sim .pipe{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .l-pipe{grid-template-columns:minmax(0,1fr)}
+  .node::after{display:none}
+  .stack{grid-template-columns:minmax(0,1fr)}
+  .att{grid-template-columns:30px minmax(0,1fr) auto}
+  .att .at{display:none}
+  .own-row{flex-wrap:wrap}
+  .own-row .btn{flex:1}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+
+<div id="tour" class="tour" role="region" aria-label="Mockup tour"></div>
+<div id="screen"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = ms => new Promise(r => setTimeout(r, Math.max(0, ms)));
+const rnd = (a, b) => Math.round(a + Math.random() * (b - a));
+const hex = n => { let s = ''; for (let i = 0; i < n; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)]; return s; };
+const uuid = () => `${hex(8)}-${hex(4)}-4${hex(3)}-${'89ab'[rnd(0, 3)]}${hex(3)}-${hex(12)}`;
+const digitsFrom = (h, n) => h.replace(/[a-f]/g, c => String(c.charCodeAt(0) - 97)).slice(0, n);
+const trunc = (s, n) => s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s;
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TZ = 'America/Edmonton';
+const fTime = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', timeZone: TZ });
+const fFull = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: TZ, timeZoneName: 'short' });
+const time = t => fTime.format(t);
+const full = t => fFull.format(t);
+const iso = t => new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
+function ago(t) {
+  const s = Math.round((Date.now() - t) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return h < 48 ? 'yesterday' : `${Math.floor(h / 24)} days ago`;
+}
+function dur(ms) { const m = Math.max(0, Math.floor(ms / 60000)); const h = Math.floor(m / 60); return h ? `${h} h ${m % 60} min` : `${m} min`; }
+function hl(obj) {
+  const s = esc(JSON.stringify(obj, null, 2));
+  return s.replace(/(&quot;(?:\\&quot;|\\[^&]|[^\\&]|&(?!quot;))*&quot;)(\s*:)?|(-?\b\d+(?:\.\d+)?\b)|\b(true|false|null)\b/g,
+    (m, str, colon, num, lit) => str ? (colon ? `<span class="j-k">${str}</span>${colon}` : `<span class="j-s">${str}</span>`) : `<span class="j-n">${num || lit}</span>`);
+}
+
+/* ---------- icons ---------- */
+const svg = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const I = {
+  inbox: svg('<path d="M3 13.5 5.7 6a1.5 1.5 0 0 1 1.4-1h9.8a1.5 1.5 0 0 1 1.4 1l2.7 7.5V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/>'),
+  dead: svg('<path d="M12 3.8 21.2 19.5H2.8z"/><path d="M12 10v4.2M12 16.9v.2"/>'),
+  sources: svg('<path d="M12 3v11M7.5 9.5 12 14l4.5-4.5"/><path d="M4 15.5V19h16v-3.5"/>'),
+  dest: svg('<path d="M20.5 3.5 10 14"/><path d="M20.5 3.5 14 20.5l-4-6.5-6.5-4z"/>'),
+  api: svg('<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>'),
+  back: svg('<path d="M15 5l-7 7 7 7"/>'),
+  check: svg('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
+  reset: svg('<path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/>'),
+  lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+};
+const LOGO = '<svg class="logo" viewBox="0 0 28 28" aria-hidden="true"><path d="M3 7h6.5l5 7M3 21h6.5l5-7M3 14h16.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23.2" cy="14" r="3" fill="currentColor"/></svg>';
+
+/* ---------- domain data ---------- */
+const CH = {
+  instagram: { label: 'Instagram', g: 'IG', hook: '/api/v1/hooks/meta', auth: 'X-Hub-Signature-256', api: 'Instagram Graph API', verb: 'Instagram DM', v: 'ig' },
+  facebook: { label: 'Facebook', g: 'FB', hook: '/api/v1/hooks/meta', auth: 'X-Hub-Signature-256', api: 'Messenger API', verb: 'Facebook message', v: 'fb' },
+  whatsapp: { label: 'WhatsApp', g: 'WA', hook: '/api/v1/hooks/meta', auth: 'X-Hub-Signature-256', api: 'WhatsApp Cloud API', verb: 'WhatsApp message', v: 'wa' },
+  form: { label: 'Website form', g: 'WF', hook: '/api/v1/hooks/website-contact', auth: 'X-Api-Key', api: 'email (Resend)', verb: 'Website form', v: 'form' },
+  stripe: { label: 'Stripe', g: 'ST', hook: '/api/v1/hooks/stripe', auth: 'Stripe-Signature', api: null, verb: 'Stripe event', v: 'stripe' },
+};
+const DEST = {
+  discord: { name: 'Discord', target: '#orders', kind: 'discord', http: 204, host: 'discord.com/api/webhooks/…' },
+  payments: { name: 'Discord', target: '#payments', kind: 'discord', http: 204, host: 'discord.com/api/webhooks/…' },
+  email: { name: 'Email', target: 'owner inbox', kind: 'email', http: 200, host: 'api.resend.com/emails' },
+};
+const ROUTES = { instagram: ['discord'], facebook: ['discord'], whatsapp: ['discord'], form: ['discord', 'email'], stripe: ['payments'] };
+const SOURCE_ID = { instagram: 11, facebook: 12, whatsapp: 13, form: 14, stripe: 15 };
+const BACKOFF = [2, 4, 8];
+const MAX_ATTEMPTS = BACKOFF.length + 1;
+const HTTP_TEXT = { 200: 'OK', 202: 'Accepted', 204: 'No Content', 409: 'Conflict', 429: 'Too Many Requests', 503: 'Service Unavailable' };
+
+// oldest first: channel, name, handle, text, minutes ago, special
+const SEED = [
+  ['whatsapp', 'Hoa Pham', '+1 587-555-0199', 'Cảm ơn nhiều! Bánh mì hôm qua ngon lắm.', 22 * 60 + 4],
+  ['form', 'Rachel Kim', 'rachel.kim@example.com', 'Do you sell gift cards? I’m looking for five $25 cards for my staff.', 19 * 60 + 12, 'email-dead'],
+  ['stripe', 'Stripe', 'test mode', 'Payment received: $86.40 CAD for online order #5521', 3 * 60 + 5],
+  ['facebook', 'Daniel Okafor', 'Facebook user', 'Are you open on Thanksgiving Monday, Oct 12?', 100],
+  ['form', 'Sarah Mitchell', 'sarah.mitchell@example.com', 'Hi! We’d like a catering quote for a team lunch on Oct 23. About 40 people, half vegetarian. Do you deliver downtown?', 52],
+  ['instagram', 'Linh Nguyen', '@linh.eats.yyc', 'Do you have vegan options? Bringing 4 friends on Saturday!', 18],
+  ['whatsapp', 'Minh Tran', '+1 403-555-0142', 'Can I order 3 lemongrass chicken bánh mì for pickup in 30 minutes? Name is Minh.', 4],
+];
+const POOL = {
+  instagram: [['Emily Chen', '@emily.c.yyc', 'Hi! Are you hiring part-time for weekends?'], ['Tuan Le', '@tuan.le.cooks', 'Can I order 20 bánh mì for a birthday party next Friday?'], ['Priya Shah', '@priyaeats', 'Is your coconut coffee dairy-free?']],
+  facebook: [['Marcus Brown', 'Facebook user', 'What time do you close today?'], ['Olivia Martin', 'Facebook user', 'Is there parking near the shop?'], ['Kevin Tran', 'Facebook user', 'Do you take reservations for a group of 10?']],
+  whatsapp: [['Kim Vo', '+1 403-555-0178', 'Running 10 min late for my pickup, sorry!'], ['Andre Silva', '+1 825-555-0113', 'Can I add an extra egg to order #5530?'], ['Thu Nguyen', '+1 587-555-0164', 'Hôm nay quán có bánh cuốn không ạ?']],
+};
+const PIPE = [
+  { k: 'api', name: 'API', svc: 'App Service · ASP.NET Core' },
+  { k: 'queue', name: 'Queue', svc: 'Storage Queue · incoming' },
+  { k: 'worker', name: 'Worker', svc: 'Functions · .NET 10' },
+  { k: 'sql', name: 'Azure SQL', svc: 'EF Core · idempotent insert' },
+  { k: 'signalr', name: 'SignalR', svc: 'Live push to this page' },
+  { k: 'deliver', name: 'Deliver', svc: 'Discord · email (mocked)' },
+];
+const TOUR = [
+  { t: 'Landing', hint: 'Click <b>Try the live demo</b>. Like the real site, there is no sign-up.' },
+  { t: 'Live message', hint: 'Press a simulator button, for example <b>Instagram DM</b>. Watch it move through the Azure pipeline and land in the inbox without a refresh.' },
+  { t: 'Under the hood', hint: 'Open a message and look at the <b>Payload</b> and <b>Trace</b> tabs. This is the part you show interviewers.' },
+  { t: 'Break Discord', hint: 'Switch on <b>Simulate Discord outage</b>, then send another message. Retries run after 2 s, 4 s and 8 s, then it moves to dead letters.' },
+  { t: 'Replay', hint: 'Switch the outage off, open <b>Dead letters</b> and press <b>Replay</b>.' },
+];
+
+/* ---------- state ---------- */
+const state = {
+  view: 'landing', page: 'inbox', woke: false, epoch: 0,
+  events: [], discord: [], replayLog: [],
+  selectedId: null, tab: 'conversation', filter: 'all', q: '', showDetail: false,
+  outage: false, pipe: null, drafts: {}, simIdx: { instagram: 0, facebook: 0, whatsapp: 0 }, simLog: [],
+  tour: [false, false, false, false, false], tourHidden: false,
+  apiSel: 0, apiOut: null, wakeToken: null, liveTimer: null,
+};
+let nextEventId = 1031, nextDeliveryId = 2201;
+
+function extId(ch) {
+  return { instagram: 'aWdfZAG' + hex(22), facebook: 'm_' + hex(24), whatsapp: 'wamid.HBgL' + hex(24).toUpperCase(), form: uuid(), stripe: 'evt_3Q' + hex(20) }[ch];
+}
+function makeEvent(channel, from, text, at) {
+  const ev = {
+    id: nextEventId++, channel, from, text, receivedAt: at, insertedAt: 0,
+    correlationId: hex(12), traceId: hex(32), spanId: hex(16), sig: hex(64), externalId: extId(channel),
+    trace: { api: rnd(9, 21), q1: rnd(70, 190), fn: rnd(55, 105), sql: rnd(7, 16), sr: rnd(5, 12), q2: rnd(35, 95) },
+    deliveries: [], replies: [],
+  };
+  ev.deliveries = ROUTES[channel].map(dest => ({ id: nextDeliveryId++, dest, status: 'Pending', attempts: [], nextAt: null, lastError: null, replayed: false, runStart: 0 }));
+  return ev;
+}
+function seed() {
+  state.epoch++;
+  nextEventId = 1031; nextDeliveryId = 2201;
+  state.events = []; state.discord = []; state.replayLog = []; state.pipe = null; state.drafts = {};
+  const now = Date.now();
+  for (const [ch, name, handle, text, mins, special] of SEED) {
+    const t = now - mins * 60000;
+    const ev = makeEvent(ch, { name, handle }, text, t);
+    for (const d of ev.deliveries) {
+      const dest = DEST[d.dest];
+      if (special === 'email-dead' && d.dest === 'email') {
+        let at = t + 600;
+        [0, 2, 4, 8].forEach((gap, i) => { at += gap * 1000 + (i ? 400 : 0); d.attempts.push({ no: i + 1, at, ms: rnd(180, 320), http: 503, error: '503 Service Unavailable' }); });
+        d.status = 'DeadLettered'; d.lastError = '503 Service Unavailable';
+      } else {
+        const at = t + rnd(450, 800);
+        d.attempts.push({ no: 1, at, ms: rnd(140, 290), http: dest.http, error: null });
+        d.status = 'Delivered';
+        if (dest.kind === 'discord') state.discord.unshift({ ev, target: dest.target, at });
+      }
+    }
+    state.events.unshift(ev);
+  }
+  state.selectedId = state.events[0].id;
+}
+
+const byId = id => state.events.find(e => e.id === id);
+function findDelivery(did) { for (const ev of state.events) { const d = ev.deliveries.find(x => x.id === did); if (d) return [ev, d]; } return null; }
+function eventStatus(ev) {
+  const s = ev.deliveries.map(d => d.status);
+  if (s.includes('DeadLettered')) return 'DeadLettered';
+  if (s.includes('Retrying')) return 'Retrying';
+  if (s.includes('Pending')) return 'Pending';
+  return 'Delivered';
+}
+const nextIn = d => d.nextAt ? Math.max(0, Math.ceil((d.nextAt - Date.now()) / 1000)) : 0;
+const attemptNo = d => d.attempts.length - d.runStart + 1;
+const destLabel = key => `${DEST[key].name} ${DEST[key].target}`;
+function deadList() { const out = []; for (const ev of state.events) for (const d of ev.deliveries) if (d.status === 'DeadLettered') out.push([ev, d]); return out; }
+function stats() {
+  const day = Date.now() - 864e5;
+  let delivered = 0, retrying = 0, dead = 0, msSum = 0, msN = 0;
+  for (const ev of state.events) for (const d of ev.deliveries) {
+    if (d.status === 'Delivered') { delivered++; msSum += d.attempts[d.attempts.length - 1].ms; msN++; }
+    else if (d.status === 'Retrying') retrying++;
+    else if (d.status === 'DeadLettered') dead++;
+  }
+  return { received: state.events.filter(e => e.receivedAt > day).length, delivered, retrying, dead, avg: msN ? Math.round(msSum / msN) : 0 };
+}
+
+/* ---------- small renderers ---------- */
+const glyph = ch => `<span class="glyph g-${ch}" aria-hidden="true">${CH[ch].g}</span>`;
+function statusPill(ev) {
+  const s = eventStatus(ev);
+  if (s === 'Delivered') return `<span class="pill pill-ok">Delivered${ev.deliveries.some(d => d.replayed) ? ' · replayed' : ''}</span>`;
+  if (s === 'Pending') return '<span class="pill pill-info">Routing</span>';
+  if (s === 'Retrying') {
+    const d = ev.deliveries.find(x => x.status === 'Retrying');
+    return `<span class="pill pill-warn">${d.nextAt ? `Retry in <span data-next="${d.id}">${nextIn(d)}</span> s` : 'Retrying now'}</span>`;
+  }
+  return '<span class="pill pill-bad">Dead letter</span>';
+}
+function deliveryPill(d) {
+  if (d.status === 'Delivered') return `<span class="pill pill-ok">Delivered${d.replayed ? ' · replayed' : ''}</span>`;
+  if (d.status === 'Pending') return '<span class="pill pill-info">Sending</span>';
+  if (d.status === 'Retrying') return `<span class="pill pill-warn">${d.nextAt ? `Attempt ${attemptNo(d)} of ${MAX_ATTEMPTS} in <span data-next="${d.id}">${nextIn(d)}</span> s` : `Sending attempt ${attemptNo(d)} of ${MAX_ATTEMPTS}`}</span>`;
+  return '<span class="pill pill-bad">Dead letter</span>';
+}
+function embedHTML(p) {
+  const ev = p.ev;
+  const title = p.test ? 'Test message' : ev.channel === 'stripe' ? 'Payment received' : `New ${CH[ev.channel].label} message`;
+  const body = p.test ? 'RelayHub can reach this channel.' : ev.text;
+  const foot = p.test ? `POST /api/v1/destinations/${p.destId}/test` : `${ev.from.name}${ev.channel === 'stripe' ? '' : ' · ' + ev.from.handle} · event #${ev.id}`;
+  const color = p.test ? 'var(--accent)' : `var(--${CH[ev.channel].v})`;
+  return `<div class="dc-post"><span class="dc-av" aria-hidden="true">RH</span><div><div class="dc-meta"><b>RelayHub</b><span class="dc-tag">APP</span><span>${time(p.at)}</span><span class="dc-chan">${esc(p.target)}</span></div><div class="dc-embed" style="--c:${color}"><div class="et">${esc(title)}</div><div class="eb">${esc(body)}</div><div class="ef">${esc(foot)}</div></div></div></div>`;
+}
+
+/* ---------- toasts, focus ---------- */
+function toast(kind, title, body) {
+  const box = $('#toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${kind}`;
+  t.innerHTML = `<b>${esc(title)}</b><span>${esc(body)}</span>`;
+  box.appendChild(t);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => t.remove(), 4600);
+}
+function saveFocus() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  let s = null, e = null;
+  try { s = a.selectionStart; e = a.selectionEnd; } catch (_) {}
+  return { id: a.id, fid: a.dataset ? a.dataset.fid : null, s, e };
+}
+function restoreFocus(f) {
+  if (!f) return;
+  const el = f.id ? document.getElementById(f.id) : f.fid ? document.querySelector(`[data-fid="${f.fid}"]`) : null;
+  if (!el || el === document.activeElement) return;
+  el.focus({ preventScroll: true });
+  if (f.s != null && el.setSelectionRange) { try { el.setSelectionRange(f.s, f.e); } catch (_) {} }
+}
+function copyText(text, btn) {
+  const label = btn.dataset.label || btn.textContent;
+  btn.dataset.label = label;
+  const done = ok => { btn.textContent = ok ? 'Copied' : 'Select and copy'; setTimeout(() => { btn.textContent = label; }, 1500); if (!ok) toast('info', 'Copy this', text); };
+  try { navigator.clipboard.writeText(text).then(() => done(true), () => done(false)); } catch (_) { done(false); }
+}
+
+/* ---------- tour ---------- */
+function tourDone(n) {
+  if (state.tour[n - 1]) return;
+  state.tour[n - 1] = true;
+  renderTour();
+  if (state.tour.every(Boolean)) toast('ok', 'Tour complete', 'That is the full 5-minute interview demo.');
+}
+function renderTour() {
+  const el = $('#tour');
+  const done = state.tour.filter(Boolean).length;
+  if (state.tourHidden) {
+    el.innerHTML = `<span class="tour-label">Mockup tour</span><span class="tour-meta">${done} of 5 steps done</span><button class="tour-btn" data-act="tour-show" data-fid="tour-toggle">Show steps</button>`;
+    return;
+  }
+  const cur = state.tour.findIndex(d => !d);
+  el.innerHTML = `<span class="tour-label">Mockup tour</span>
+    <ol class="tour-steps">${TOUR.map((s, i) => `<li><button class="tour-step${state.tour[i] ? ' is-done' : ''}${i === cur ? ' is-current' : ''}" data-act="tour" data-step="${i + 1}" data-fid="tour-${i}"><span class="n">${state.tour[i] ? I.check : i + 1}</span>${s.t}</button></li>`).join('')}</ol>
+    <p class="tour-hint">${cur === -1 ? 'All five steps done. This is the whole interview demo. Press <b>Reset demo</b> in the sidebar to run it again.' : TOUR[cur].hint}</p>
+    <button class="tour-btn" data-act="tour-hide" data-fid="tour-toggle">Hide</button>`;
+}
+function jump(step) {
+  if (step === 1) { state.view = 'landing'; renderScreen(); return; }
+  if (step === 3) {
+    if (!byId(state.selectedId)) state.selectedId = state.events[0].id;
+    state.tab = 'payload'; state.showDetail = true;
+    go('inbox', true);
+    $('#detail') && $('#detail').scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
+    return;
+  }
+  if (step === 5) { go('dead'); return; }
+  go('inbox');
+  if (step === 4) {
+    const sw = $('#outage') && $('#outage').closest('.switch');
+    if (sw) { sw.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); sw.classList.add('flash'); setTimeout(() => sw.classList.remove('flash'), 2600); }
+  }
+}
+
+/* ---------- engine ---------- */
+function simulate(ch) {
+  const list = POOL[ch];
+  const [name, handle, text] = list[state.simIdx[ch] % list.length];
+  state.simIdx[ch]++;
+  return ingest(ch, { name, handle }, text);
+}
+function ingest(channel, from, text) {
+  const now = Date.now();
+  state.simLog = state.simLog.filter(t => now - t < 60000);
+  if (state.simLog.length >= 10) { toast('bad', '429 Too Many Requests', 'The public demo allows 10 test messages per minute. Wait a moment and try again.'); return null; }
+  state.simLog.push(now);
+  const ev = makeEvent(channel, from, text, now);
+  animateIngest(ev);
+  return ev;
+}
+function setStage(run, i, note) {
+  if (state.pipe !== run) return;
+  run.stage = i;
+  run.notes[PIPE[i].k] = note;
+  renderPipeline();
+}
+async function animateIngest(ev) {
+  const epoch = state.epoch;
+  const run = state.pipe = { id: ev.id, ch: ev.channel, stage: 0, notes: {} };
+  const n = ev.deliveries.length;
+  const notes = [
+    `signature ✓ · 202 in ${ev.trace.api} ms`,
+    'enqueued to “incoming”',
+    `normalized · ${n} route${n > 1 ? 's' : ''}`,
+    `dbo.Events #${ev.id} saved`,
+    `pushed in ${ev.trace.sr} ms`,
+  ];
+  for (let i = 0; i < 4; i++) {
+    if (epoch !== state.epoch) return;
+    setStage(run, i, notes[i]);
+    await sleep(reduced ? 220 : 430);
+  }
+  if (epoch !== state.epoch) return;
+  ev.insertedAt = Date.now();
+  state.events.unshift(ev);
+  state.selectedId = ev.id;
+  if (state.outage) state.tab = 'deliveries';
+  setStage(run, 4, notes[4]);
+  refresh();
+  toast('info', `New ${CH[ev.channel].label} message`, `${ev.from.name}: ${trunc(ev.text, 70)}`);
+  tourDone(2);
+  await sleep(reduced ? 200 : 380);
+  if (epoch !== state.epoch) return;
+  setStage(run, 5, '');
+  ev.deliveries.forEach(d => runDelivery(ev, d, false));
+}
+async function runDelivery(ev, d, replay) {
+  const epoch = state.epoch;
+  const dest = DEST[d.dest];
+  d.runStart = d.attempts.length; d.status = 'Pending'; d.nextAt = null;
+  refresh();
+  let retry = 0;
+  for (;;) {
+    await sleep(380);
+    if (epoch !== state.epoch) return false;
+    const fail = dest.kind === 'discord' && state.outage;
+    const ms = fail ? rnd(180, 340) : rnd(120, 290);
+    d.attempts.push({ no: d.attempts.length + 1, at: Date.now(), ms, http: fail ? 503 : dest.http, error: fail ? '503 Service Unavailable' : null, replay: !!replay });
+    if (!fail) {
+      d.status = 'Delivered'; d.nextAt = null; d.lastError = null;
+      if (replay) d.replayed = true;
+      if (dest.kind === 'discord') { state.discord.unshift({ ev, target: dest.target, at: Date.now() }); state.discord.length = Math.min(state.discord.length, 20); }
+      refresh();
+      return true;
+    }
+    d.lastError = '503 Service Unavailable';
+    if (retry >= BACKOFF.length) {
+      d.status = 'DeadLettered'; d.nextAt = null;
+      refresh();
+      toast('bad', 'Moved to dead letters', `${destLabel(d.dest)} failed ${MAX_ATTEMPTS} times for event #${ev.id}. Fix the cause, then replay it from Dead letters.`);
+      if (dest.kind === 'discord') tourDone(4);
+      return false;
+    }
+    d.status = 'Retrying'; d.nextAt = Date.now() + BACKOFF[retry] * 1000; retry++;
+    refresh();
+    await sleep(d.nextAt - Date.now());
+    if (epoch !== state.epoch) return false;
+    d.nextAt = null;
+    refresh();
+  }
+}
+function replay(did) {
+  const f = findDelivery(did);
+  if (!f || f[1].status !== 'DeadLettered') return false;
+  const [ev, d] = f;
+  state.replayLog.unshift({ did, at: Date.now() });
+  toast('info', 'Replay queued', `POST /api/v1/deliveries/${did}/replay → 202 Accepted`);
+  runDelivery(ev, d, true).then(ok => {
+    if (ok) { toast('ok', 'Replay delivered', `${destLabel(d.dest)} accepted event #${ev.id}.`); tourDone(5); }
+  });
+  return true;
+}
+function setOutage(on) {
+  if (state.outage === on) { syncOutage(); return; }
+  state.outage = on;
+  toast(on ? 'warn' : 'ok', on ? 'Discord outage is on' : 'Discord is back', on ? 'Every Discord delivery now gets 503. Send a message to watch the retries.' : 'Discord deliveries succeed again. Anything still retrying will now go through.');
+  refresh();
+}
+function syncOutage() {
+  $$('#outage, #outage-dest').forEach(i => { i.checked = state.outage; const sw = i.closest('.switch'); if (sw) sw.classList.toggle('is-on', state.outage); });
+}
+function testDest(key) {
+  const id = key === 'email' ? 32 : 31;
+  if (key === 'discord' && state.outage) { toast('bad', 'Test failed', `POST /api/v1/destinations/${id}/test → Discord answered 503. The simulated outage is on.`); return; }
+  if (key === 'discord') { state.discord.unshift({ test: true, destId: id, target: '#orders', at: Date.now() }); }
+  toast('ok', 'Test sent', `POST /api/v1/destinations/${id}/test → ${key === 'email' ? '200 OK from Resend' : '204 from Discord'} in ${rnd(140, 260)} ms`);
+  refresh();
+}
+function resetDemo() {
+  seed();
+  state.outage = false; state.filter = 'all'; state.q = ''; state.tab = 'conversation'; state.showDetail = false; state.simLog = [];
+  state.tour = [true, false, false, false, false];
+  state.apiOut = null;
+  toast('ok', 'Demo data reset', 'Seven sample messages restored. The real app does this on the first demo visit each day.');
+  renderPage();
+}
+
+/* ---------- screens ---------- */
+function renderScreen() {
+  clearInterval(state.liveTimer);
+  const s = $('#screen');
+  if (state.view === 'landing') { s.innerHTML = landingHTML(); startLiveCard(); }
+  else if (state.view === 'waking') { s.innerHTML = wakeHTML(); runWake(); }
+  else { s.innerHTML = shellHTML(); renderPage(); }
+  renderTour();
+  window.scrollTo(0, 0);
+}
+function enterApp() { state.view = 'app'; state.woke = true; renderScreen(); }
+function go(page, keepDetail) {
+  state.page = page;
+  if (!keepDetail) state.showDetail = false;
+  if (state.view !== 'app') { state.view = 'app'; state.woke = true; renderScreen(); }
+  else { renderPage(); window.scrollTo(0, 0); }
+}
+
+/* landing */
+const LIVE = [
+  ['instagram', 'Linh Nguyen', 'Do you have vegan options?', 'Discord'],
+  ['whatsapp', 'Minh Tran', '3 lemongrass chicken bánh mì for pickup', 'Discord'],
+  ['form', 'Sarah Mitchell', 'Catering quote for 40 people on Oct 23', 'Discord + email'],
+  ['facebook', 'Daniel Okafor', 'Open on Thanksgiving Monday?', 'Discord'],
+  ['stripe', 'Stripe', 'Payment received: $86.40 CAD', '#payments'],
+  ['instagram', 'Emily Chen', 'Are you hiring part-time for weekends?', 'Discord'],
+  ['whatsapp', 'Kim Vo', 'Running 10 min late for my pickup', 'Discord'],
+];
+const LIVE_TIMES = ['just now', '1 min ago', '4 min ago', '9 min ago'];
+const liveRow = (r, i) => `<li class="live-row">${glyph(r[0])}<span class="nm">${esc(r[1])}</span><span class="tm">${LIVE_TIMES[i] || ''}</span><span class="tx">${esc(r[2])}</span><span class="rt">${I.check}${esc(r[3])}</span></li>`;
+function startLiveCard() {
+  const ul = $('#live-rows');
+  if (!ul) return;
+  ul.innerHTML = LIVE.slice(0, 4).map(liveRow).join('');
+  if (reduced) return;
+  let next = 4;
+  state.liveTimer = setInterval(() => {
+    if (!document.body.contains(ul)) { clearInterval(state.liveTimer); return; }
+    const tmp = document.createElement('ul');
+    tmp.innerHTML = liveRow(LIVE[next % LIVE.length], 0);
+    const li = tmp.firstElementChild;
+    li.classList.add('enter');
+    ul.prepend(li);
+    while (ul.children.length > 4) ul.lastElementChild.remove();
+    $$('.tm', ul).forEach((el, i) => { el.textContent = LIVE_TIMES[i]; });
+    next++;
+  }, 2800);
+}
+const STEPS = [
+  ['API', 'App Service · ASP.NET Core', 'Checks the webhook signature and answers 202 in milliseconds. It never waits on the database.'],
+  ['Queue', 'Azure Storage Queues', 'Holds the message. Queue messages never expire, so nothing is dropped while the database wakes up.'],
+  ['Worker', 'Azure Functions · .NET 10', 'Turns each platform’s format into one common message and decides where it goes.'],
+  ['Azure SQL', 'EF Core · serverless', 'Saves it once. A unique index on source and message ID makes duplicate webhooks harmless.'],
+  ['SignalR', 'Azure SignalR Service', 'Pushes the new message to every open dashboard. No refresh, no polling.'],
+  ['Deliver', 'Discord · Teams · email · HTTP', 'Posts it where you work, with retries, backoff and a dead-letter list for anything that still fails.'],
+];
+const FEATURES = [
+  ['HMAC-SHA256', 'Signed webhooks', 'Every webhook is checked against the raw request body. A forged request gets 401 and never reaches the queue.'],
+  ['30 s → 1 h', 'Retry with backoff', 'Failed deliveries retry after 30 s, 2 min, 10 min, 30 min and 1 h. The demo speeds this up to 2, 4 and 8 seconds so you can watch it happen.'],
+  ['Replay', 'Dead letters, not lost messages', 'Anything that still fails is kept with its payload, every attempt and the last error. Fix the cause, then press Replay.'],
+  ['OpenTelemetry', 'One trace per message', 'The trace context rides inside the queue message, so Application Insights shows webhook, queue, worker and Discord as one timeline.'],
+];
+const STACK = [
+  ['Backend', ['C#', '.NET 10', 'ASP.NET Core Web API', 'EF Core', 'Azure Functions (isolated)', 'Polly']],
+  ['Data and messaging', ['Azure SQL Database', 'Azure Storage Queues', 'Azure SignalR Service']],
+  ['Frontend', ['React', 'TypeScript', 'Vite', 'Azure Static Web Apps']],
+  ['Security and ops', ['Managed Identity', 'Key Vault', 'Application Insights', 'Bicep', 'GitHub Actions (OIDC)']],
+];
+function landingHTML() {
+  return `<div class="landing">
+  <nav class="l-nav" aria-label="Site">
+    <div class="brand">${LOGO}<span>RelayHub</span></div>
+    <div class="l-links"><button data-act="scroll" data-target="how">How it works</button><button data-act="scroll" data-target="reliable">Reliability</button><button data-act="scroll" data-target="stack">Tech stack</button></div>
+    <button class="btn btn-primary btn-sm" data-act="demo">Try the live demo</button>
+  </nav>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Unified inbox · Integration hub</p>
+      <h1>Every customer message in one inbox. None of them lost.</h1>
+      <p class="lede">RelayHub collects messages from Instagram, Facebook, WhatsApp and your website, saves them in Azure SQL and forwards them to Discord, Teams or email. When a destination is down, it retries on its own and keeps anything that still fails for one-click replay.</p>
+      <div class="hero-cta"><button class="btn btn-primary btn-lg" data-act="demo">Try the live demo</button><button class="btn btn-lg" data-act="scroll" data-target="how">See how it works</button></div>
+      <p class="hero-note">No sign-up · nothing to install · synthetic demo data</p>
+    </div>
+    <div class="live-card" role="img" aria-label="Example inbox receiving messages from several channels">
+      <div class="live-head"><b>Inbox · Prairie Bánh Mì</b><span class="live-dot">Live</span></div>
+      <ul class="live-rows" id="live-rows"></ul>
+      <div class="live-foot"><span>In: Instagram · Facebook · WhatsApp · website · Stripe</span><span>Out: Discord · Teams · email · any HTTP API</span></div>
+    </div>
+  </section>
+  <section class="l-sec" id="how">
+    <p class="eyebrow">How it works</p>
+    <h2>What happens when a customer sends a message</h2>
+    <p class="sub">Six steps, about two seconds end to end. The API answers right away and the slow work happens behind a queue, so a sleeping database or a broken destination never loses a message.</p>
+    <ol class="pipe l-pipe">${STEPS.map((s, i) => `<li class="node"><span class="k">Step ${i + 1}</span><span class="nm">${s[0]}</span><span class="svc">${s[1]}</span><p class="desc">${s[2]}</p></li>`).join('')}</ol>
+  </section>
+  <section class="l-sec" id="reliable">
+    <p class="eyebrow">Reliability</p>
+    <h2>Built for the day something breaks</h2>
+    <p class="sub">Webhooks arrive twice, APIs go down, free-tier databases fall asleep. Each of these has a planned answer, and the demo lets you trigger the worst one yourself.</p>
+    <div class="feat">${FEATURES.map(f => `<article><span class="tag">${f[0]}</span><h3>${f[1]}</h3><p>${f[2]}</p></article>`).join('')}</div>
+  </section>
+  <section class="l-sec" id="stack">
+    <p class="eyebrow">Tech stack</p>
+    <h2>.NET and Azure on the back end, React and TypeScript on the front</h2>
+    <div class="stack">${STACK.map(g => `<div><h3>${g[0]}</h3><ul>${g[1].map(x => `<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>
+    <p class="stack-note">Runs on Azure free tiers for about $0 a month. Infrastructure is defined in Bicep and deployed by GitHub Actions without stored secrets.</p>
+  </section>
+  <section class="cta-band">
+    <div><h2>See the whole flow in under five minutes</h2><p>Send a message, break Discord on purpose, then replay what failed.</p></div>
+    <button class="btn btn-primary btn-lg" data-act="demo">Try the live demo</button>
+  </section>
+  <footer class="l-foot"><span>RelayHub · portfolio project by Tim Tran, Calgary</span><span>Clickable mockup. Nothing on this page calls Azure yet.</span></footer>
+</div>`;
+}
+
+/* waking */
+const WAKE = [
+  ['Waking the API', 'App Service · GET /health', 650],
+  ['Waking the database', 'Azure SQL serverless · auto-resume', 950],
+  ['Starting a demo session', 'POST /api/v1/auth/demo → JWT, role Demo', 500],
+  ['Connecting live updates', 'POST /api/v1/realtime/negotiate · SignalR', 450],
+];
+function wakeHTML() {
+  return `<div class="wake"><div class="wake-card" role="status">
+    <p class="eyebrow">Demo workspace</p>
+    <h1>Starting your demo</h1>
+    <p class="muted">Free-tier Azure services sleep when nobody is using them, so a cold start normally takes 20 to 60 seconds. This mockup fast-forwards it.</p>
+    <ol class="wake-steps">${WAKE.map((w, i) => `<li class="wk" id="wk-${i}"><span class="ic">${I.check}</span><span><b>${w[0]}</b><small>${w[1]}</small></span><span class="t" id="wkt-${i}"></span></li>`).join('')}</ol>
+    <button class="btn btn-sm btn-quiet" data-act="skip-wake">Skip</button>
+  </div></div>`;
+}
+async function runWake() {
+  const token = state.wakeToken = {};
+  for (let i = 0; i < WAKE.length; i++) {
+    const row = $('#wk-' + i);
+    if (state.wakeToken !== token || !row) return;
+    row.classList.add('is-active');
+    await sleep(reduced ? 150 : WAKE[i][2]);
+    if (state.wakeToken !== token) return;
+    row.classList.remove('is-active'); row.classList.add('is-done');
+    $('#wkt-' + i).textContent = 'ready';
+  }
+  await sleep(reduced ? 100 : 380);
+  if (state.wakeToken === token) enterApp();
+}
+
+/* app shell */
+const NAV = [['inbox', 'Inbox', 'inbox'], ['dead', 'Dead letters', 'dead'], ['sources', 'Sources', 'sources'], ['destinations', 'Destinations &amp; routes', 'dest'], ['api', 'REST API', 'api']];
+function shellHTML() {
+  return `<div class="app">
+  <aside class="rail">
+    <div class="brand">${LOGO}<span>RelayHub</span></div>
+    <div class="ws"><b>Demo workspace</b><span>Prairie Bánh Mì · sample data</span></div>
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <div class="rail-foot">
+      <div class="who"><span class="avatar" aria-hidden="true">DV</span><div><b>Demo visitor</b><span>Role: Demo · resets daily</span></div></div>
+      <div class="rail-btns"><button class="btn btn-sm" data-act="reset">${I.reset}Reset demo</button><button class="btn btn-sm btn-quiet" data-act="exit">Exit</button></div>
+    </div>
+  </aside>
+  <main class="main" id="page"></main>
+</div>`;
+}
+function renderNav() {
+  const el = $('#nav');
+  if (!el) return;
+  const dead = deadList().length;
+  el.innerHTML = NAV.map(([k, l, i]) => {
+    const count = k === 'inbox' ? `<span class="count">${state.events.length}</span>` : k === 'dead' && dead ? `<span class="count bad">${dead}</span>` : '';
+    return `<button data-act="nav" data-page="${k}" data-fid="nav-${k}"${state.page === k ? ' aria-current="page"' : ''}>${I[i]}<span>${l}</span>${count}</button>`;
+  }).join('');
+}
+const PAGES = {
+  inbox: () => `<header class="page-head"><div><h1>Inbox</h1><p class="live">Live updates on · SignalR connected</p></div><div class="search"><label class="sr" for="q">Search messages</label><input class="input" id="q" type="search" placeholder="Search messages or names" autocomplete="off" value="${esc(state.q)}"></div></header>
+  <div class="stats" id="stats"></div>
+  <section class="sim" aria-labelledby="sim-h">
+    <div class="sim-ctrl">
+      <div class="sim-head"><h2 id="sim-h">Demo simulator</h2><p>Each button sends a correctly signed webhook in the platform’s real format, through the same pipeline real messages use.</p></div>
+      <div class="sim-btns">${['instagram', 'facebook', 'whatsapp'].map(ch => `<button class="sim-btn" data-act="sim" data-ch="${ch}" data-fid="sim-${ch}">${glyph(ch)}${CH[ch].verb}</button>`).join('')}</div>
+      <form class="own" id="own-form" novalidate><label for="own-text">Or write your own. It arrives as a website-form message.</label><div class="own-row"><input class="input" id="own-text" maxlength="500" placeholder="Do you cater for 30 people next Friday?" autocomplete="off"><button class="btn btn-primary" type="submit">Send</button></div><p class="field-err" id="own-err" hidden>Type a message first.</p></form>
+      <label class="switch" for="outage"><input type="checkbox" id="outage"><span class="track"></span><span><b>Simulate Discord outage</b><small>Discord answers 503 until you switch this off. Watch the retries, the dead letter, then replay it.</small></span></label>
+    </div>
+    <aside class="dc" id="discord" aria-label="Discord preview"></aside>
+    <div class="pipe-wrap"><div class="pipe-cap" id="pipe-cap"></div><ol class="pipe" id="pipeline"></ol></div>
+  </section>
+  <div class="inbox" id="inbox"><div class="list-col"><div class="filters" id="filters" role="toolbar" aria-label="Filter messages"></div><ul class="list" id="list"></ul></div><section class="detail" id="detail" aria-label="Message detail"></section></div>`,
+  dead: () => `<header class="page-head"><div><h1>Dead letters</h1><p class="desc">Deliveries that failed every retry. Nothing is lost: each one keeps its payload, every attempt and the last error. Fix the cause, then replay.</p></div></header><div id="dead-banner"></div><div id="dead"></div><div id="replays"></div>`,
+  sources: () => `<header class="page-head"><div><h1>Sources</h1><p class="desc">Where messages come from. Every source has its own endpoint, and every request is verified before anything is queued.</p></div></header><div class="cards" id="sources"></div>`,
+  destinations: () => `<header class="page-head"><div><h1>Destinations &amp; routes</h1><p class="desc">Where messages go. A route sends one source to one or more destinations with a message template, so adding a channel is configuration, not new code.</p></div></header><div class="cards" id="dests"></div><section class="sec"><h2 class="h2">Routes</h2><div class="table-wrap" id="routes"></div></section>`,
+  api: () => `<header class="page-head"><div><h1>REST API</h1><p class="desc">The dashboard does everything through this API, so anything you click can also be scripted. Pick an endpoint and send a request to the mock.</p></div></header>
+  <dl class="facts"><div><dt>Base path</dt><dd><code>/api/v1</code></dd></div><div><dt>Auth</dt><dd>JWT bearer · roles Owner and Demo</dd></div><div><dt>Format</dt><dd>JSON · errors as ProblemDetails</dd></div><div><dt>Docs</dt><dd>OpenAPI + Scalar at <code>/docs</code></dd></div><div><dt>Limits</dt><dd>ASP.NET Core rate limiter, per IP</dd></div></dl>
+  <div class="api"><ul class="api-list" id="api-list"></ul><div class="console" id="api-console"></div></div>`,
+};
+function renderPage() {
+  const el = $('#page');
+  if (!el) return;
+  el.innerHTML = PAGES[state.page]();
+  refresh();
+}
+function refresh() {
+  renderTour();
+  if (state.view !== 'app' || !$('#page')) return;
+  const f = saveFocus();
+  renderNav();
+  if (state.page === 'inbox') { renderStats(); renderPipeline(); renderDiscord(); renderFilters(); renderList(); renderDetail(); syncOutage(); }
+  else if (state.page === 'dead') renderDead();
+  else if (state.page === 'sources') renderSources();
+  else if (state.page === 'destinations') { renderDests(); syncOutage(); }
+  else if (state.page === 'api') renderApi();
+  restoreFocus(f);
+}
+
+/* inbox parts */
+function renderStats() {
+  const el = $('#stats'); if (!el) return;
+  const s = stats();
+  el.innerHTML = `<span class="stat"><b class="num">${s.received}</b>received in 24 h</span><span class="stat ok"><b class="num">${s.delivered}</b>delivered</span><span class="stat warn"><b class="num">${s.retrying}</b>retrying</span><span class="stat bad"><b class="num">${s.dead}</b>dead letters</span><span class="stat"><b class="num">${s.avg} ms</b>average delivery</span>`;
+}
+function renderPipeline() {
+  const el = $('#pipeline'), cap = $('#pipe-cap');
+  if (!el) return;
+  const run = state.pipe;
+  const ev = run && byId(run.id);
+  cap.innerHTML = run
+    ? `<b>Live pipeline</b><span>Event #${run.id} from ${CH[run.ch].label}${ev ? ` · ${esc(ev.from.name)}` : ''}</span>`
+    : '<b>Live pipeline</b><span>Send a test message to watch it move through Azure, step by step.</span>';
+  el.innerHTML = PIPE.map((n, i) => {
+    let cls = '', note = '';
+    if (run) {
+      if (i < run.stage) cls = 'is-done'; else if (i === run.stage) cls = 'is-active';
+      note = run.notes[n.k] || '';
+      if (i === 5 && run.stage === 5 && ev) {
+        const s = eventStatus(ev);
+        if (s === 'Delivered') { cls = 'is-ok'; note = ev.deliveries.map(d => `${DEST[d.dest].name} ${d.attempts[d.attempts.length - 1].http}${d.replayed ? ' (replay)' : ''}`).join(' · '); }
+        else if (s === 'Retrying') {
+          const d = ev.deliveries.find(x => x.status === 'Retrying');
+          cls = 'is-wait';
+          note = d.nextAt ? `503 · attempt ${attemptNo(d)} of ${MAX_ATTEMPTS} in <span data-next="${d.id}">${nextIn(d)}</span> s` : `sending attempt ${attemptNo(d)} of ${MAX_ATTEMPTS}`;
+        }
+        else if (s === 'DeadLettered') { cls = 'is-fail'; note = `dead letter after ${MAX_ATTEMPTS} attempts`; }
+        else note = 'sending…';
+      }
+    }
+    return `<li class="node ${cls}"><span class="k">${i + 1} · ${n.k}</span><span class="nm">${n.name}</span><span class="svc">${n.svc}</span><span class="note">${note || '&nbsp;'}</span></li>`;
+  }).join('');
+}
+function renderDiscord() {
+  const el = $('#discord'); if (!el) return;
+  const posts = state.discord.slice(0, 3);
+  el.innerHTML = `<div class="dc-head">Discord preview<span>mocked · no real server</span></div>${posts.length ? posts.map(embedHTML).join('') : '<p class="dc-empty">Delivered messages show up here.</p>'}`;
+}
+const FILTERS = [['all', 'All'], ['attention', 'Needs attention'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['whatsapp', 'WhatsApp'], ['form', 'Website form'], ['stripe', 'Stripe']];
+const matchFilter = (ev, f) => f === 'all' || (f === 'attention' ? eventStatus(ev) !== 'Delivered' : ev.channel === f);
+function visible() {
+  const q = state.q.trim().toLowerCase();
+  return state.events.filter(ev => matchFilter(ev, state.filter) && (!q || `${ev.text} ${ev.from.name} ${ev.from.handle}`.toLowerCase().includes(q)));
+}
+function renderFilters() {
+  const el = $('#filters'); if (!el) return;
+  el.innerHTML = FILTERS.map(([k, l]) => `<button class="chip" data-act="filter" data-f="${k}" data-fid="f-${k}" aria-pressed="${state.filter === k}">${l}<span>${state.events.filter(e => matchFilter(e, k)).length}</span></button>`).join('');
+}
+function renderList() {
+  const el = $('#list'); if (!el) return;
+  const items = visible();
+  el.innerHTML = items.length ? items.map(ev => `<li><button class="row" data-act="select" data-id="${ev.id}" data-fid="row-${ev.id}" aria-current="${ev.id === state.selectedId}">${glyph(ev.channel)}<span class="nm">${esc(ev.from.name)}</span><span class="tm num">${ago(ev.receivedAt)}</span><span class="tx">${esc(ev.text)}</span><span class="st">${statusPill(ev)}<span class="to">→ ${[...new Set(ev.deliveries.map(d => DEST[d.dest].name))].join(' + ')}</span></span></button></li>`).join('')
+    : '<li class="empty">No messages match. Clear the search or choose another filter.</li>';
+  if (reduced) return;
+  const c = getComputedStyle(document.documentElement).getPropertyValue('--fresh').trim();
+  for (const ev of items) {
+    const age = Date.now() - ev.insertedAt;
+    if (!ev.insertedAt || age >= 2600) continue;
+    const row = el.querySelector(`[data-id="${ev.id}"]`);
+    if (row && row.animate) row.animate([{ backgroundColor: c }, { backgroundColor: 'transparent' }], { duration: 2600, delay: -age, easing: 'ease-out' });
+  }
+}
+const TABS = [['conversation', 'Conversation'], ['deliveries', 'Deliveries'], ['payload', 'Payload'], ['trace', 'Trace']];
+function renderDetail() {
+  const el = $('#detail'); if (!el) return;
+  $('#inbox').classList.toggle('show-detail', state.showDetail);
+  const ev = byId(state.selectedId);
+  if (!ev) { el.innerHTML = '<p class="empty">Select a message to see it here.</p>'; return; }
+  if (state.tab === 'payload' || state.tab === 'trace') tourDone(3);
+  const body = state.tab === 'deliveries' ? deliveriesTab(ev) : state.tab === 'payload' ? payloadTab(ev) : state.tab === 'trace' ? traceTab(ev) : conversationTab(ev);
+  el.innerHTML = `<div class="d-head">
+      <button class="back" data-act="back" data-fid="back">${I.back}Inbox</button>
+      <div class="d-who">${glyph(ev.channel)}<div><h2>${esc(ev.from.name)}</h2><p>${esc(ev.from.handle)} · ${CH[ev.channel].label} · ${full(ev.receivedAt)}</p></div></div>
+      <div class="d-meta">${statusPill(ev)}<span class="mono muted">#${ev.id}</span></div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Message views">${TABS.map(([k, l]) => `<button class="tab" role="tab" data-act="tab" data-tab="${k}" data-fid="tab-${k}" aria-selected="${state.tab === k}">${l}${k === 'deliveries' ? `<span class="tb">${ev.deliveries.length}</span>` : ''}</button>`).join('')}</div>
+    <div class="tab-body" role="tabpanel">${body}</div>`;
+}
+function corrLine(ev) {
+  return `<div class="kv"><span>Correlation ID</span><code>${ev.correlationId}</code><button class="btn btn-sm btn-quiet" data-act="copy" data-copy="${ev.correlationId}" data-fid="copy-corr">Copy</button><span>Search it in Application Insights to see every log line for this message.</span></div>`;
+}
+function conversationTab(ev) {
+  if (ev.channel === 'stripe') {
+    return `<div class="pay"><span class="pk">payment_intent.succeeded</span><span class="amt">$86.40 <small>CAD</small></span><span class="muted">Online order #5521 · Stripe test mode</span></div>
+      <p class="policy">Payment events can’t be replied to. RelayHub posts them to Discord #payments.</p>${corrLine(ev)}`;
+  }
+  const meta = ev.channel !== 'form';
+  const left = ev.receivedAt + 864e5 - Date.now();
+  const open = !meta || left > 0;
+  const first = ev.from.name.split(' ')[0];
+  const note = !meta ? 'Sends an email through Resend (mocked in the demo).'
+    : open ? `Reply window: ${dur(left)} left. Meta allows replies for 24 hours after the customer’s last message.`
+    : 'Reply window closed. Meta only allows replies within 24 hours of the customer’s last message.';
+  return `<div class="thread"><div class="bubble in">${esc(ev.text)}<span class="bt">${time(ev.receivedAt)}</span></div>${ev.replies.map(r => `<div class="bubble out">${esc(r.text)}<span class="bt">${time(r.at)} · sent via ${CH[ev.channel].api} (mocked)</span></div>`).join('')}</div>
+    <form class="composer" data-form="reply" data-id="${ev.id}"><label class="sr" for="reply">Reply to ${esc(first)}</label><textarea id="reply" rows="2" placeholder="Reply to ${esc(first)} on ${CH[ev.channel].label}"${open ? '' : ' disabled'}>${esc(state.drafts[ev.id] || '')}</textarea>
+      <div class="composer-foot"><span>${note}</span><button class="btn btn-primary btn-sm" type="submit"${open ? '' : ' disabled'}>Send reply</button></div></form>
+    ${corrLine(ev)}`;
+}
+function deliveriesTab(ev) {
+  const cards = ev.deliveries.map(d => {
+    const dest = DEST[d.dest];
+    const rows = d.attempts.map(a => `<li class="att"><span>#${a.no}</span><span class="at">${time(a.at)}</span><span class="${a.error ? 'bad-c' : 'ok-c'}">${a.http} ${HTTP_TEXT[a.http]}${a.replay ? ' <span class="rp">· replay</span>' : ''}</span><span class="num">${a.ms} ms</span></li>`).join('');
+    let extra = '';
+    if (d.status === 'Retrying' && d.nextAt) extra = `<li class="att next"><span>#${d.attempts.length + 1}</span><span class="at">in <span data-next="${d.id}">${nextIn(d)}</span> s</span><span>waiting (backoff)</span><span></span></li>`;
+    else if (d.status === 'Pending' || (d.status === 'Retrying' && !d.nextAt)) extra = `<li class="att"><span>#${d.attempts.length + 1}</span><span class="at">now</span><span>sending…</span><span></span></li>`;
+    return `<div class="dl"><div class="dl-head"><b>${dest.name}</b><span class="tg">${esc(dest.target)}</span><span class="sp">${deliveryPill(d)}${d.status === 'DeadLettered' ? `<button class="btn btn-sm btn-primary" data-act="replay" data-did="${d.id}" data-fid="replay-${d.id}">Replay</button>` : ''}</span></div><ol class="attempts">${rows}${extra}</ol></div>`;
+  }).join('');
+  const dc = ev.deliveries.find(d => DEST[d.dest].kind === 'discord');
+  return `${cards}
+    <p class="policy">Demo retry policy: wait 2 s, 4 s, then 8 s, and dead-letter after ${MAX_ATTEMPTS} attempts. Production waits 30 s, 2 min, 10 min, 30 min, then 1 h.</p>
+    ${dc ? `<div><p class="h-sm">How it looks in Discord</p><div class="dc">${embedHTML({ ev, target: DEST[dc.dest].target, at: dc.attempts.length ? dc.attempts[dc.attempts.length - 1].at : ev.receivedAt })}</div></div>` : ''}`;
+}
+function rawRequest(ev) {
+  const ts = Math.floor(ev.receivedAt / 1000);
+  const ch = ev.channel;
+  const phone = ev.from.handle.replace(/\D/g, '');
+  if (ch === 'form') {
+    return { headers: ['POST /api/v1/hooks/website-contact HTTP/1.1', 'Content-Type: application/json', 'X-Api-Key: src_8f2c••••••••', `Idempotency-Key: ${ev.externalId}`], body: { name: ev.from.name, email: ev.from.handle, message: ev.text }, verify: 'API key hash matches source “Website contact form”' };
+  }
+  if (ch === 'stripe') {
+    return { headers: ['POST /api/v1/hooks/stripe HTTP/1.1', 'Content-Type: application/json', `Stripe-Signature: t=${ts},v1=${ev.sig.slice(0, 20)}…`], body: { id: ev.externalId, object: 'event', type: 'payment_intent.succeeded', created: ts, livemode: false, data: { object: { id: 'pi_3Q' + ev.sig.slice(20, 34), object: 'payment_intent', amount: 8640, currency: 'cad', status: 'succeeded', metadata: { orderId: '5521' } } } }, verify: 'Stripe signature valid, timestamp within 5 minutes' };
+  }
+  const headers = [`POST ${CH[ch].hook} HTTP/1.1`, 'Content-Type: application/json', `X-Hub-Signature-256: sha256=${ev.sig.slice(0, 20)}…`];
+  const verify = 'HMAC-SHA256 of the raw body matches the app secret (constant-time compare)';
+  let body;
+  if (ch === 'instagram') body = { object: 'instagram', entry: [{ id: '17841405822304914', time: ts, messaging: [{ sender: { id: digitsFrom(ev.sig, 16) }, recipient: { id: '17841405822304914' }, timestamp: ev.receivedAt, message: { mid: ev.externalId, text: ev.text } }] }] };
+  else if (ch === 'facebook') body = { object: 'page', entry: [{ id: '108512340096711', time: ev.receivedAt, messaging: [{ sender: { id: digitsFrom(ev.sig, 16) }, recipient: { id: '108512340096711' }, timestamp: ev.receivedAt, message: { mid: ev.externalId, text: ev.text } }] }] };
+  else body = { object: 'whatsapp_business_account', entry: [{ id: '102290129340398', changes: [{ field: 'messages', value: { messaging_product: 'whatsapp', metadata: { display_phone_number: '15550783881', phone_number_id: '106540352242922' }, contacts: [{ profile: { name: ev.from.name }, wa_id: phone }], messages: [{ from: phone, id: ev.externalId, timestamp: String(ts), type: 'text', text: { body: ev.text } }] } }] }] };
+  return { headers, body, verify };
+}
+function payloadTab(ev) {
+  const r = rawRequest(ev);
+  const row = { id: ev.id, workspaceId: 2, sourceId: SOURCE_ID[ev.channel], externalId: ev.externalId, channel: ev.channel, senderName: ev.from.name, senderHandle: ev.from.handle, text: ev.text, receivedAt: iso(ev.receivedAt), correlationId: ev.correlationId };
+  return `<div class="codeblock"><div class="cb-head"><span>1 · Webhook as received</span><span class="ok-t">verified</span></div><pre>${r.headers.map(h => `<span class="j-c">${esc(h)}</span>`).join('\n')}\n\n${hl(r.body)}</pre><div class="cb-foot"><span class="ok-t">✓ ${esc(r.verify)}</span><span>→ 202 Accepted in ${ev.trace.api} ms, queued to “incoming”</span></div></div>
+    <div class="codeblock"><div class="cb-head"><span>2 · Saved to Azure SQL · dbo.Events</span><span>EF Core</span></div><pre>${hl(row)}</pre><div class="cb-foot"><span>Unique index on (SourceId, ExternalId): if the platform sends the same webhook twice, the second insert is skipped.</span></div></div>`;
+}
+function traceTab(ev) {
+  const t = ev.trace, rows = [];
+  rows.push({ lb: `POST ${CH[ev.channel].hook}`, svc: 'relayhub-api · App Service', c: 'compute', s: 0, d: t.api });
+  rows.push({ lb: 'queue wait · incoming', svc: 'Storage Queue', c: 'data', s: t.api, d: t.q1 });
+  const w = t.api + t.q1;
+  rows.push({ lb: 'ProcessIncomingEvent', svc: 'relayhub-worker · Functions', c: 'compute', s: w, d: t.fn });
+  rows.push({ lb: 'INSERT dbo.Events', svc: 'Azure SQL', c: 'data', s: w + 6, d: t.sql, child: 1 });
+  rows.push({ lb: 'SignalR SendToGroup', svc: 'Azure SignalR', c: 'data', s: w + 10 + t.sql, d: t.sr, child: 1 });
+  const q2 = w + t.fn;
+  rows.push({ lb: 'queue wait · deliveries', svc: 'Storage Queue', c: 'data', s: q2, d: t.q2 });
+  const ds = q2 + t.q2;
+  ev.deliveries.forEach(d => {
+    const a = d.attempts[0];
+    if (!a) return;
+    rows.push({ lb: `Deliver → ${destLabel(d.dest)}`, svc: 'relayhub-worker · Functions', c: 'compute', s: ds, d: a.ms + 22 });
+    rows.push({ lb: `POST ${DEST[d.dest].host}`, svc: `HTTP ${a.http}`, c: a.error ? 'ext fail' : 'ext', s: ds + 11, d: a.ms, child: 1 });
+  });
+  const total = Math.max(...rows.map(r => r.s + r.d));
+  const pct = v => (v / total * 100).toFixed(2);
+  const later = [];
+  ev.deliveries.forEach(d => d.attempts.slice(1).forEach(a => later.push(`attempt ${a.no} to ${DEST[d.dest].name} → ${a.http}`)));
+  return `<div class="legend"><span><i class="svc-compute"></i>Compute: App Service, Functions</span><span><i class="svc-data"></i>Data and messaging</span><span><i class="svc-ext"></i>Outbound call</span></div>
+    <div class="wf-wrap"><div class="wf">${rows.map(r => `<div class="wf-row${r.child ? ' child' : ''}"><span class="lb" title="${esc(r.lb)}">${esc(r.lb)}<small>${esc(r.svc)}</small></span><span class="wf-track"><span class="wf-bar svc-${r.c}" style="left:${pct(r.s)}%;width:${Math.max(+pct(r.d), 0.8)}%"></span></span><span class="ms num">${r.d} ms</span></div>`).join('')}
+      <div class="wf-axis"><span></span><span class="ax"><span>0 ms</span><span>${Math.round(total / 2)} ms</span><span>${total} ms</span></span><span></span></div></div></div>
+    ${later.length ? `<p class="policy">Retries continue the same trace as later spans (not drawn to scale): ${later.join(' · ')}.</p>` : ''}
+    <div class="kv"><span>traceparent</span><code>00-${ev.traceId}-${ev.spanId}-01</code><button class="btn btn-sm btn-quiet" data-act="copy" data-copy="${ev.traceId}" data-fid="copy-trace">Copy trace ID</button></div>
+    <p class="policy">The worker reads the W3C trace context from the queue message, so Application Insights joins the API, the queue, the worker and the outbound call into one end-to-end trace.</p>`;
+}
+
+/* dead letters */
+function renderDead() {
+  const el = $('#dead'), ban = $('#dead-banner'), hist = $('#replays');
+  if (!el) return;
+  const items = deadList();
+  ban.innerHTML = state.outage
+    ? '<div class="banner"><div><b>The simulated Discord outage is still on.</b> Replays to Discord will fail again until you switch it off.</div><button class="btn btn-sm" data-act="outage-off" data-fid="outage-off">Switch outage off</button></div>'
+    : items.length ? `<div class="banner ok"><div><b>All destinations are healthy.</b> Replays should go through now.</div>${items.length > 1 ? `<button class="btn btn-sm btn-primary" data-act="replay-all" data-fid="replay-all">Replay all ${items.length}</button>` : ''}</div>` : '';
+  el.innerHTML = items.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Message</th><th>Destination</th><th>Last error</th><th>Attempts</th><th>Failed</th><th><span class="sr">Action</span></th></tr></thead><tbody>${items.map(([ev, d]) => {
+        const last = d.attempts[d.attempts.length - 1];
+        return `<tr><td><button class="link-row" data-act="open" data-id="${ev.id}">${glyph(ev.channel)}<span><b>#${ev.id} · ${esc(ev.from.name)}</b><span class="muted">${esc(trunc(ev.text, 64))}</span></span></button></td><td>${DEST[d.dest].name} <span class="mono muted">${esc(DEST[d.dest].target)}</span></td><td class="mono bad-c">${esc(d.lastError || '')}</td><td class="num">${d.attempts.length}</td><td>${ago(last.at)}</td><td><button class="btn btn-sm btn-primary" data-act="replay" data-did="${d.id}" data-fid="replay-${d.id}">Replay</button></td></tr>`;
+      }).join('')}</tbody></table></div>`
+    : '<div class="empty-card"><b>No dead letters right now.</b><p>To make one, switch on <b>Simulate Discord outage</b> in the Inbox and send a message. After 4 failed attempts it lands here.</p><button class="btn btn-sm" data-act="nav" data-page="inbox">Go to Inbox</button></div>';
+  hist.innerHTML = state.replayLog.length
+    ? `<section class="sec"><h2 class="h2">Replay history</h2><ul class="hist">${state.replayLog.map(r => {
+        const f = findDelivery(r.did);
+        if (!f) return '';
+        const [ev, d] = f;
+        return `<li>${glyph(ev.channel)}<span><b>#${ev.id} → ${esc(destLabel(d.dest))}</b><span class="muted">replayed ${ago(r.at)}</span></span>${deliveryPill(d)}</li>`;
+      }).join('')}</ul></section>` : '';
+}
+
+/* sources */
+const SOURCES = [
+  ['instagram', 'Instagram', '@prairiebanhmi · Business account', 'Connected'],
+  ['facebook', 'Facebook Page', 'Prairie Bánh Mì', 'Connected'],
+  ['whatsapp', 'WhatsApp Cloud API', 'Meta test number +1 555-078-3881', 'Test number'],
+  ['form', 'Website contact form', 'prairiebanhmi.example/contact', 'Connected'],
+  ['stripe', 'Stripe', 'Payments · test mode', 'Test mode'],
+];
+function renderSources() {
+  const el = $('#sources'); if (!el) return;
+  const day = Date.now() - 864e5;
+  el.innerHTML = SOURCES.map(([ch, name, acct, st]) => {
+    const evs = state.events.filter(e => e.channel === ch);
+    const n = evs.filter(e => e.receivedAt > day).length;
+    const latest = evs.length ? Math.max(...evs.map(e => e.receivedAt)) : 0;
+    const meta = CH[ch].auth === 'X-Hub-Signature-256';
+    return `<article class="card"><div class="card-head">${glyph(ch)}<div><h3>${name}</h3><p>${esc(acct)}</p></div><span class="pill ${st === 'Connected' ? 'pill-ok' : 'pill-info'}">${st}</span></div>
+      <dl class="kvs"><dt>Endpoint</dt><dd><code>POST ${CH[ch].hook}</code></dd><dt>Verified by</dt><dd><code>${CH[ch].auth}</code>${meta ? ' · registered with the Meta hub.challenge handshake' : ''}</dd><dt>Last 24 h</dt><dd>${n} message${n === 1 ? '' : 's'}</dd><dt>Latest</dt><dd>${latest ? ago(latest) : 'none yet'}</dd></dl>
+      <div class="card-foot"><button class="btn btn-sm" data-act="copy" data-copy="POST ${CH[ch].hook}" data-fid="copy-src-${ch}">Copy endpoint</button></div></article>`;
+  }).join('') + `<article class="card"><div class="card-head"><span class="glyph g-add" aria-hidden="true">+</span><div><h3>Connect another source</h3><p>GitHub, Shopify or any app that can send a webhook</p></div></div>
+      <p class="locked">${I.lock}<span>Owner only. Demo visitors can look around but can’t change settings.</span></p>
+      <div class="card-foot"><button class="btn btn-sm" disabled>Add source</button></div></article>`;
+}
+
+/* destinations */
+function renderDests() {
+  const el = $('#dests'), rt = $('#routes'); if (!el) return;
+  const lastDiscord = state.discord.find(p => !p.test);
+  el.innerHTML = `<article class="card"><div class="card-head"><div><h3>Discord</h3><p>Incoming webhooks · #orders and #payments</p></div>${state.outage ? '<span class="pill pill-bad">Failing · 503</span>' : '<span class="pill pill-ok">Healthy</span>'}</div>
+      <dl class="kvs"><dt>Used by</dt><dd>Instagram, Facebook, WhatsApp, website form, Stripe</dd><dt>Last delivery</dt><dd>${lastDiscord ? ago(lastDiscord.at) : 'none yet'}</dd><dt>In the demo</dt><dd>Mocked. Posts appear in the Discord preview on the Inbox page.</dd></dl>
+      <div class="card-foot"><button class="btn btn-sm" data-act="test-dest" data-dest="discord" data-fid="test-discord">Send test</button><label class="switch" for="outage-dest"><input type="checkbox" id="outage-dest"><span class="track"></span><span><b>Simulate outage</b><small>Same switch as on the Inbox page</small></span></label></div></article>
+    <article class="card"><div class="card-head"><div><h3>Email</h3><p>Resend · to the owner inbox</p></div><span class="pill pill-ok">Healthy</span></div>
+      <dl class="kvs"><dt>Used by</dt><dd>Website form</dd><dt>Free tier</dt><dd>3,000 emails a month</dd><dt>In the demo</dt><dd>Mocked, so visitors can’t send real email.</dd></dl>
+      <div class="card-foot"><button class="btn btn-sm" data-act="test-dest" data-dest="email" data-fid="test-email">Send test</button></div></article>
+    <article class="card"><div class="card-head"><div><h3>Microsoft Teams</h3><p>Workflows webhook URL</p></div><span class="pill pill-mute">Not connected</span></div>
+      <dl class="kvs"><dt>Cost</dt><dd>Free with any Teams account</dd><dt>Good for</dt><dd>Showing the same flow in a corporate setting</dd></dl>
+      <p class="locked">${I.lock}<span>Connecting a destination is owner only.</span></p>
+      <div class="card-foot"><button class="btn btn-sm" disabled>Connect</button></div></article>
+    <article class="card"><div class="card-head"><div><h3>Any HTTP API</h3><p>URL, method, headers and a body template</p></div><span class="pill pill-mute">Owner only</span></div>
+      <dl class="kvs"><dt>Safety</dt><dd>Private and internal IP ranges are always refused (SSRF protection).</dd><dt>In the demo</dt><dd>Blocked, so the public can’t make RelayHub call arbitrary URLs.</dd></dl>
+      <p class="locked">${I.lock}<span>Owner only.</span></p>
+      <div class="card-foot"><button class="btn btn-sm" disabled>Add HTTP destination</button></div></article>`;
+  const ROUTE_ROWS = [
+    [['instagram', 'facebook', 'whatsapp'], 'Discord #orders', '**New {{channel}} message** from {{sender.name}}: {{text}}'],
+    [['form'], 'Discord #orders, Email', 'New enquiry from {{sender.name}} ({{sender.handle}}): {{text}}'],
+    [['stripe'], 'Discord #payments', 'Payment received: {{amount}} {{currency}} for order {{metadata.orderId}}'],
+  ];
+  rt.innerHTML = `<table><thead><tr><th>When a message comes from</th><th>Send to</th><th>Template</th><th>Status</th></tr></thead><tbody>${ROUTE_ROWS.map(r => `<tr><td>${r[0].map(c => CH[c].label).join(', ')}</td><td>${r[1]}</td><td><code>${esc(r[2])}</code></td><td><span class="pill pill-ok">On</span></td></tr>`).join('')}</tbody></table>`;
+}
+
+/* api console */
+const BEARER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiRGVtbyJ9.k3Jb…';
+function apiEvent(ev, detail) {
+  const o = { id: ev.id, channel: ev.channel, from: { name: ev.from.name, handle: ev.from.handle }, text: ev.text, receivedAt: iso(ev.receivedAt), status: eventStatus(ev) };
+  if (detail) o.correlationId = ev.correlationId;
+  o.deliveries = ev.deliveries.map(d => {
+    const x = { id: d.id, destination: destLabel(d.dest), status: d.status, attempts: d.attempts.length };
+    if (d.lastError && d.status !== 'Delivered') x.lastError = d.lastError;
+    if (detail) x.history = d.attempts.map(a => ({ attempt: a.no, at: iso(a.at), httpStatus: a.http, durationMs: a.ms }));
+    return x;
+  });
+  return o;
+}
+const problem = (status, title, detail, type) => ({ type, title, status, detail, traceId: `00-${hex(32)}-${hex(16)}-01` });
+function replayTarget() { const dl = deadList(); return dl.length ? dl[0][1].id : state.events[0].deliveries[0].id; }
+const currentEvent = () => byId(state.selectedId) || state.events[0];
+const API = [
+  { m: 'GET', d: 'List messages that need attention', path: () => '/api/v1/events?status=DeadLettered&take=20',
+    run: () => { const items = state.events.filter(e => eventStatus(e) === 'DeadLettered').map(e => apiEvent(e, false)); return [200, { items, total: items.length, nextCursor: null }]; } },
+  { m: 'GET', d: 'One message with every delivery attempt', path: () => `/api/v1/events/${currentEvent().id}`,
+    run: () => [200, apiEvent(currentEvent(), true)] },
+  { m: 'POST', d: 'Replay a dead-lettered delivery', path: () => `/api/v1/deliveries/${replayTarget()}/replay`,
+    run: path => {
+      const did = +path.split('/')[4];
+      const f = findDelivery(did);
+      if (f && replay(did)) return [202, { deliveryId: did, eventId: f[0].id, status: 'Pending', message: 'Replay queued' }];
+      return [409, problem(409, 'Nothing to replay', `Delivery ${did} is ${f ? f[1].status : 'unknown'}, not DeadLettered.`, 'https://tools.ietf.org/html/rfc9110#section-15.5.10')];
+    } },
+  { m: 'GET', d: 'Counters for the dashboard', path: () => '/api/v1/stats/summary',
+    run: () => { const s = stats(); const byChannel = {}; Object.keys(CH).forEach(c => { byChannel[c] = state.events.filter(e => e.channel === c).length; }); return [200, { window: '24h', received: s.received, delivered: s.delivered, retrying: s.retrying, deadLettered: s.dead, avgDeliveryMs: s.avg, byChannel }]; } },
+  { m: 'POST', d: 'Simulate a signed WhatsApp webhook', path: () => '/api/v1/demo/simulate', body: () => ({ channel: 'whatsapp' }),
+    run: () => { const ev = simulate('whatsapp'); return ev ? [202, { status: 'accepted', eventId: ev.id, correlationId: ev.correlationId }] : [429, problem(429, 'Too Many Requests', 'The demo allows 10 simulated messages per minute.', 'https://tools.ietf.org/html/rfc6585#section-4')]; } },
+  { m: 'PUT', d: 'Turn the Discord outage on or off', path: () => '/api/v1/demo/failure-mode', body: () => ({ enabled: !state.outage }),
+    run: (path, body) => { setOutage(body.enabled); return [200, { destination: 'Discord #orders', enabled: body.enabled }]; } },
+];
+function renderApi() {
+  const list = $('#api-list'), con = $('#api-console');
+  if (!list) return;
+  list.innerHTML = API.map((e, i) => `<li><button class="ep" data-act="api" data-i="${i}" data-fid="ep-${i}" aria-current="${i === state.apiSel}"><span class="m m-${e.m}">${e.m}</span><span class="p">${esc(e.path().split('?')[0])}</span><span class="d">${e.d}</span></button></li>`).join('');
+  const e = API[state.apiSel];
+  const out = state.apiOut && state.apiOut.i === state.apiSel ? state.apiOut : null;
+  const path = out ? out.path : e.path();
+  const body = out ? out.body : e.body && e.body();
+  const req = [`${e.m} ${path} HTTP/1.1`, `Authorization: Bearer ${BEARER}`, 'Accept: application/json'].concat(body ? ['Content-Type: application/json'] : []);
+  const resHead = out ? `HTTP/1.1 ${out.status} ${HTTP_TEXT[out.status]}` : '';
+  con.innerHTML = `<div class="codeblock"><div class="cb-head"><span>Request</span><button class="btn btn-sm btn-primary" data-act="api-send" data-fid="api-send">Send request</button></div><pre>${req.map(l => `<span class="j-c">${esc(l)}</span>`).join('\n')}${body ? '\n\n' + hl(body) : ''}</pre></div>
+    <div class="codeblock"><div class="cb-head"><span>Response</span>${out ? `<span class="${out.status < 300 ? 'ok-t' : 'bad-t'}">${out.status} ${HTTP_TEXT[out.status]} · ${out.ms} ms</span>` : ''}</div><pre>${out
+      ? `<span class="${out.status < 300 ? 'ok-t' : 'bad-t'}">${resHead}</span>\n<span class="j-c">Content-Type: application/${out.status >= 400 ? 'problem+' : ''}json; charset=utf-8\nX-Correlation-Id: ${out.corr}</span>\n\n${hl(out.res)}`
+      : '<span class="j-c">Press “Send request” to call the mock API.\nIn the real build this goes to ASP.NET Core on Azure App Service.</span>'}</pre></div>`;
+}
+function apiSend() {
+  const e = API[state.apiSel];
+  const path = e.path();
+  const body = e.body && e.body();
+  const [status, res] = e.run(path, body);
+  state.apiOut = { i: state.apiSel, path, body, status, res, ms: rnd(16, 58), corr: hex(12) };
+  renderApi();
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  const a = b.dataset.act;
+  if (a === 'demo') { tourDone(1); state.page = 'inbox'; state.view = state.woke ? 'app' : 'waking'; renderScreen(); }
+  else if (a === 'skip-wake') { state.wakeToken = null; enterApp(); }
+  else if (a === 'scroll') { const t = document.getElementById(b.dataset.target); if (t) t.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }); }
+  else if (a === 'nav') go(b.dataset.page);
+  else if (a === 'select') { state.selectedId = +b.dataset.id; state.showDetail = true; refresh(); if (matchMedia('(max-width: 999px)').matches) $('#inbox').scrollIntoView({ block: 'start' }); }
+  else if (a === 'back') { state.showDetail = false; refresh(); $('#inbox').scrollIntoView({ block: 'start' }); }
+  else if (a === 'tab') { state.tab = b.dataset.tab; refresh(); }
+  else if (a === 'filter') { state.filter = b.dataset.f; renderFilters(); renderList(); }
+  else if (a === 'sim') simulate(b.dataset.ch);
+  else if (a === 'replay') replay(+b.dataset.did);
+  else if (a === 'replay-all') deadList().forEach(([, d]) => replay(d.id));
+  else if (a === 'outage-off') setOutage(false);
+  else if (a === 'open') { state.selectedId = +b.dataset.id; state.tab = 'deliveries'; state.showDetail = true; go('inbox', true); }
+  else if (a === 'copy') copyText(b.dataset.copy, b);
+  else if (a === 'test-dest') testDest(b.dataset.dest);
+  else if (a === 'api') { state.apiSel = +b.dataset.i; renderApi(); }
+  else if (a === 'api-send') apiSend();
+  else if (a === 'tour') jump(+b.dataset.step);
+  else if (a === 'tour-hide') { state.tourHidden = true; renderTour(); }
+  else if (a === 'tour-show') { state.tourHidden = false; renderTour(); }
+  else if (a === 'reset') resetDemo();
+  else if (a === 'exit') { state.view = 'landing'; renderScreen(); }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'outage' || e.target.id === 'outage-dest') setOutage(e.target.checked);
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'q') { state.q = t.value; renderList(); }
+  else if (t.id === 'own-text') { const err = $('#own-err'); if (err) err.hidden = true; }
+  else if (t.id === 'reply') state.drafts[state.selectedId] = t.value;
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'own-form') {
+    const input = $('#own-text');
+    const v = input.value.trim();
+    if (!v) { $('#own-err').hidden = false; input.focus(); return; }
+    if (ingest('form', { name: 'You (demo visitor)', handle: 'visitor@example.com' }, v)) input.value = '';
+  } else if (f.dataset.form === 'reply') {
+    const id = +f.dataset.id;
+    const ev = byId(id);
+    const v = (state.drafts[id] || '').trim();
+    if (!ev) return;
+    if (!v) { toast('warn', 'Nothing to send', 'Type a reply first.'); return; }
+    ev.replies.push({ text: v, at: Date.now() });
+    state.drafts[id] = '';
+    toast('ok', 'Reply sent', `${CH[ev.channel].api} accepted it (mocked in the demo).`);
+    refresh();
+  }
+});
+
+/* ---------- boot ---------- */
+seed();
+renderScreen();
+setInterval(() => {
+  $$('[data-next]').forEach(el => {
+    const f = findDelivery(+el.dataset.next);
+    if (f && f[1].nextAt) { const v = String(nextIn(f[1])); if (el.textContent !== v) el.textContent = v; }
+  });
+}, 250);
+setInterval(() => { if (state.view === 'app' && state.page === 'inbox') renderList(); }, 30000);
+})();
+</script>

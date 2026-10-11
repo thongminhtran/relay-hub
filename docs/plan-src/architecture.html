@@ -1,0 +1,161 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;background:#fff}
+  svg{font-family:"Segoe UI",Calibri,Arial,sans-serif;font-size:14px;fill:#1E293B}
+  .t{font-weight:700;font-size:17px;fill:#1F3A5F}
+  .s{font-size:12.5px;fill:#475569}
+  .m{font-size:12px;fill:#334155}
+  .b{font-size:13px}
+  .grp{font-weight:700;font-size:13px;letter-spacing:2px;fill:#64748B}
+  .lbl{font-size:12px;fill:#475569}
+  .red{fill:#B91C1C}
+  .blue{fill:#0F4C81}
+  .num{font-weight:700;font-size:14px;fill:#fff}
+  .foot{font-size:13px;fill:#334155}
+</style></head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" width="1584" height="940" viewBox="0 0 1584 940">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#475569"/></marker>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#DC2626"/></marker>
+    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0078D4"/></marker>
+  </defs>
+
+  <!-- groups -->
+  <rect x="24" y="52" width="232" height="372" rx="12" fill="none" stroke="#CBD5E1" stroke-dasharray="6 5"/>
+  <text x="40" y="42" class="grp">SOURCES</text>
+  <rect x="1298" y="52" width="262" height="316" rx="12" fill="none" stroke="#CBD5E1" stroke-dasharray="6 5"/>
+  <text x="1314" y="42" class="grp">DESTINATIONS</text>
+
+  <!-- source boxes -->
+  <g class="b">
+    <rect x="40" y="70" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669"/><text x="140" y="97" text-anchor="middle">Instagram (Business / Creator)</text>
+    <rect x="40" y="126" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669"/><text x="140" y="153" text-anchor="middle">Facebook Page</text>
+    <rect x="40" y="182" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669"/><text x="140" y="209" text-anchor="middle">Telegram bot</text>
+    <rect x="40" y="238" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669"/><text x="140" y="265" text-anchor="middle">Email (Cloudflare Worker)</text>
+    <rect x="40" y="294" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669"/><text x="140" y="321" text-anchor="middle">Website contact form</text>
+    <rect x="40" y="350" width="200" height="44" rx="8" fill="#ECFDF5" stroke="#059669" stroke-dasharray="4 3"/><text x="140" y="377" text-anchor="middle">Demo simulator</text>
+  </g>
+
+  <!-- destination boxes -->
+  <g>
+    <rect x="1314" y="70" width="230" height="44" rx="8" fill="#F1F5F9" stroke="#64748B"/><text x="1429" y="97" text-anchor="middle">Discord</text>
+    <rect x="1314" y="126" width="230" height="44" rx="8" fill="#F1F5F9" stroke="#64748B"/><text x="1429" y="153" text-anchor="middle">Microsoft Teams</text>
+    <rect x="1314" y="182" width="230" height="44" rx="8" fill="#F1F5F9" stroke="#64748B"/><text x="1429" y="209" text-anchor="middle">Email (Resend)</text>
+    <rect x="1314" y="238" width="230" height="44" rx="8" fill="#F1F5F9" stroke="#64748B"/><text x="1429" y="265" text-anchor="middle">Telegram (owner's phone)</text>
+    <rect x="1314" y="294" width="230" height="44" rx="8" fill="#F1F5F9" stroke="#64748B"/><text x="1429" y="321" text-anchor="middle">Any REST API (HTTP)</text>
+  </g>
+
+  <!-- API -->
+  <rect x="420" y="120" width="250" height="160" rx="12" fill="#EFF6FF" stroke="#0078D4" stroke-width="1.5"/>
+  <text x="545" y="148" text-anchor="middle" class="t">RelayHub.Api</text>
+  <text x="545" y="168" text-anchor="middle" class="s">ASP.NET Core Web API · .NET 10</text>
+  <text x="545" y="185" text-anchor="middle" class="s">Azure App Service (F1)</text>
+  <text x="545" y="214" text-anchor="middle" class="m">verify signature → enqueue</text>
+  <text x="545" y="232" text-anchor="middle" class="m">200 OK fast · REST API + JWT</text>
+  <text x="545" y="250" text-anchor="middle" class="m">reply endpoint (sync)</text>
+  <text x="545" y="268" text-anchor="middle" class="m">keep-warm /health</text>
+
+  <!-- Queues -->
+  <rect x="730" y="140" width="200" height="120" rx="12" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
+  <text x="830" y="170" text-anchor="middle" class="t">Storage Queues</text>
+  <text x="830" y="194" text-anchor="middle" class="m">incoming · deliveries</text>
+  <text x="830" y="212" text-anchor="middle" class="m">poison queue</text>
+  <text x="830" y="236" text-anchor="middle" class="m">backoff = visibility delay</text>
+
+  <!-- Worker -->
+  <rect x="990" y="120" width="250" height="160" rx="12" fill="#EFF6FF" stroke="#0078D4" stroke-width="1.5"/>
+  <text x="1115" y="148" text-anchor="middle" class="t">RelayHub.Worker</text>
+  <text x="1115" y="168" text-anchor="middle" class="s">Azure Functions (Flex) · .NET 10 isolated</text>
+  <text x="1115" y="197" text-anchor="middle" class="m">normalize · save · attach to conversation</text>
+  <text x="1115" y="215" text-anchor="middle" class="m">route · deliver · retry w/ backoff</text>
+  <text x="1115" y="233" text-anchor="middle" class="m">dead-letter · replay · notify</text>
+  <text x="1115" y="260" text-anchor="middle" class="m">queue-triggered, wakes on demand</text>
+
+  <!-- Dashboard -->
+  <rect x="420" y="560" width="250" height="150" rx="12" fill="#EFF6FF" stroke="#0078D4" stroke-width="1.5"/>
+  <text x="545" y="588" text-anchor="middle" class="t">Dashboard</text>
+  <text x="545" y="608" text-anchor="middle" class="s">React + TypeScript (Vite)</text>
+  <text x="545" y="625" text-anchor="middle" class="s">Azure Static Web Apps (Free)</text>
+  <text x="545" y="654" text-anchor="middle" class="m">inbox · conversations · reply box</text>
+  <text x="545" y="672" text-anchor="middle" class="m">event detail · stats · demo mode</text>
+  <text x="545" y="690" text-anchor="middle" class="m">24-h reply-window countdown</text>
+
+  <!-- SQL -->
+  <rect x="730" y="560" width="200" height="150" rx="12" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
+  <text x="830" y="588" text-anchor="middle" class="t">Azure SQL Database</text>
+  <text x="830" y="608" text-anchor="middle" class="s">free offer (serverless)</text>
+  <text x="830" y="637" text-anchor="middle" class="m">EF Core · idempotent writes</text>
+  <text x="830" y="655" text-anchor="middle" class="m">events · conversations</text>
+  <text x="830" y="673" text-anchor="middle" class="m">deliveries · attempts</text>
+  <text x="830" y="696" text-anchor="middle" class="m">never polled → stays free</text>
+
+  <!-- SignalR -->
+  <rect x="990" y="560" width="250" height="150" rx="12" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1115" y="588" text-anchor="middle" class="t">Azure SignalR Service</text>
+  <text x="1115" y="608" text-anchor="middle" class="s">free tier</text>
+  <text x="1115" y="645" text-anchor="middle" class="m">live updates to open dashboards:</text>
+  <text x="1115" y="663" text-anchor="middle" class="m">event created · reply sent</text>
+  <text x="1115" y="681" text-anchor="middle" class="m">delivery updated</text>
+
+  <!-- 1: sources -> API -->
+  <line x1="256" y1="232" x2="418" y2="232" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <text x="337" y="254" text-anchor="middle" class="lbl">signed webhook</text>
+  <!-- 7: reply path (dashed red) -->
+  <line x1="418" y1="150" x2="258" y2="150" stroke="#DC2626" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#ar)"/>
+  <text x="337" y="118" text-anchor="middle" class="lbl red">reply (Owner only)</text>
+  <text x="337" y="174" text-anchor="middle" class="lbl red">Meta Send API · Telegram</text>
+  <text x="337" y="190" text-anchor="middle" class="lbl red">email · 24-h window</text>
+  <!-- 2, 3, 4 -->
+  <line x1="670" y1="200" x2="728" y2="200" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="930" y1="200" x2="988" y2="200" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="1240" y1="200" x2="1296" y2="200" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <text x="1268" y="224" text-anchor="middle" class="lbl">notify</text>
+
+  <!-- worker -> SQL, worker -> SignalR -->
+  <line x1="1070" y1="280" x2="890" y2="558" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <text x="930" y="420" text-anchor="middle" class="lbl">save events</text>
+  <text x="930" y="437" text-anchor="middle" class="lbl">&amp; deliveries</text>
+  <line x1="1150" y1="280" x2="1150" y2="558" stroke="#475569" stroke-width="2" marker-end="url(#a)"/>
+  <text x="1170" y="440" class="lbl">push</text>
+
+  <!-- 6: SignalR -> dashboard, routed under the boxes -->
+  <path d="M1115,710 V745 H545 V712" fill="none" stroke="#0078D4" stroke-width="2" marker-end="url(#ab)"/>
+  <text x="830" y="774" text-anchor="middle" class="lbl blue">real time: the new message appears in the browser without refresh</text>
+
+  <!-- dashboard <-> API -->
+  <line x1="520" y1="558" x2="520" y2="282" stroke="#475569" stroke-width="2" marker-end="url(#a)" marker-start="url(#a)"/>
+  <text x="500" y="420" text-anchor="end" class="lbl">REST + JWT</text>
+  <text x="500" y="437" text-anchor="end" class="lbl">query · CRUD · reply</text>
+
+  <!-- API -> SQL (query) -->
+  <line x1="670" y1="270" x2="790" y2="558" stroke="#475569" stroke-width="2" stroke-dasharray="3 4" marker-end="url(#a)"/>
+  <text x="762" y="420" class="lbl">query</text>
+
+  <!-- numbers -->
+  <g>
+    <circle cx="337" cy="216" r="13" fill="#1F3A5F"/><text x="337" y="221" text-anchor="middle" class="num">1</text>
+    <circle cx="699" cy="186" r="13" fill="#1F3A5F"/><text x="699" y="191" text-anchor="middle" class="num">2</text>
+    <circle cx="959" cy="186" r="13" fill="#1F3A5F"/><text x="959" y="191" text-anchor="middle" class="num">3</text>
+    <circle cx="1268" cy="186" r="13" fill="#1F3A5F"/><text x="1268" y="191" text-anchor="middle" class="num">4</text>
+    <circle cx="1150" cy="400" r="13" fill="#1F3A5F"/><text x="1150" y="405" text-anchor="middle" class="num">5</text>
+    <circle cx="830" cy="745" r="13" fill="#1F3A5F"/><text x="830" y="750" text-anchor="middle" class="num">6</text>
+    <circle cx="337" cy="150" r="13" fill="#DC2626"/><text x="337" y="155" text-anchor="middle" class="num">7</text>
+  </g>
+
+  <!-- legend -->
+  <g>
+    <rect x="40" y="808" width="16" height="16" rx="3" fill="#EFF6FF" stroke="#0078D4"/><text x="64" y="821" class="lbl">Azure compute / hosting</text>
+    <rect x="40" y="834" width="16" height="16" rx="3" fill="#FFF7ED" stroke="#D97706"/><text x="64" y="847" class="lbl">Azure data &amp; messaging</text>
+    <rect x="250" y="808" width="16" height="16" rx="3" fill="#ECFDF5" stroke="#059669"/><text x="274" y="821" class="lbl">Inbound source (you reply to these)</text>
+    <rect x="250" y="834" width="16" height="16" rx="3" fill="#F1F5F9" stroke="#64748B"/><text x="274" y="847" class="lbl">Outbound destination (makes the phone buzz)</text>
+    <line x1="560" y1="816" x2="600" y2="816" stroke="#DC2626" stroke-width="2" stroke-dasharray="7 5"/><text x="610" y="821" class="lbl">Reply path (synchronous, Owner only)</text>
+    <line x1="560" y1="842" x2="600" y2="842" stroke="#475569" stroke-width="2"/><text x="610" y="847" class="lbl">Numbers 1–7 match the walk-through in section 3.3</text>
+  </g>
+
+  <!-- footer -->
+  <rect x="40" y="876" width="1504" height="44" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="792" y="904" text-anchor="middle" class="foot">Cross-cutting:  Managed Identity  ·  Key Vault  ·  Application Insights (OpenTelemetry)  ·  GitHub Actions CI/CD (OIDC)  ·  Bicep IaC  ·  keep-warm ping on /health</text>
+</svg>
+</body></html>

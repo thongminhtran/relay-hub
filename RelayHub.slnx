@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RelayHub.Api/RelayHub.Api.csproj" />
+    <Project Path="src/RelayHub.Core/RelayHub.Core.csproj" />
+    <Project Path="src/RelayHub.Infrastructure/RelayHub.Infrastructure.csproj" />
+    <Project Path="src/RelayHub.Worker/RelayHub.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RelayHub.IntegrationTests/RelayHub.IntegrationTests.csproj" />
+    <Project Path="tests/RelayHub.UnitTests/RelayHub.UnitTests.csproj" />
+  </Folder>
+</Solution>
