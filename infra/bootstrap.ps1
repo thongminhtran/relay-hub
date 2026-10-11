@@ -82,10 +82,16 @@ foreach ($role in @("Contributor", "Role Based Access Control Administrator")) {
     Invoke-Az @("role", "assignment", "create", "--assignee-object-id", $spId, "--assignee-principal-type", "ServicePrincipal",
                 "--role", $role, "--scope", $scope, "-o", "none") | Out-Null
 }
-$existing = (Invoke-Az @("ad", "app", "federated-credential", "list", "--id", $appId, "--query", "[?name=='github-main'] | length(@)", "-o", "tsv") | Out-String).Trim()
+# deploy.yml runs in the GitHub environment "production", so the OIDC subject is the environment form.
+# GitHub now includes owner/repo ids in the subject: repo:<owner>@<ownerId>/<repo>@<repoId>:environment:production
+$owner, $repoName = $Repo.Split("/")
+$ownerId = (& gh api "users/$owner" --jq .id | Out-String).Trim()
+$repoId = (& gh api "repos/$Repo" --jq .id | Out-String).Trim()
+$subject = "repo:$owner@$ownerId/$repoName@$repoId`:environment:production"
+$existing = (Invoke-Az @("ad", "app", "federated-credential", "list", "--id", $appId, "--query", "[?subject=='$subject'] | length(@)", "-o", "tsv") | Out-String).Trim()
 if ($existing -eq "0") {
-    $fc = @{ name = "github-main"; issuer = "https://token.actions.githubusercontent.com";
-             subject = "repo:$Repo`:ref:refs/heads/main"; audiences = @("api://AzureADTokenExchange") } | ConvertTo-Json -Compress
+    $fc = @{ name = "github-production"; issuer = "https://token.actions.githubusercontent.com";
+             subject = $subject; audiences = @("api://AzureADTokenExchange") } | ConvertTo-Json -Compress
     $tmp = Join-Path $env:TEMP "relayhub-fc.json"; Set-Content -Path $tmp -Value $fc -Encoding ascii
     Invoke-Az @("ad", "app", "federated-credential", "create", "--id", $appId, "--parameters", $tmp, "-o", "none") | Out-Null
     Remove-Item $tmp

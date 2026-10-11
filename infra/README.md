@@ -36,7 +36,8 @@ az role assignment create --assignee-object-id $SP_ID --assignee-principal-type 
   --role "Role Based Access Control Administrator" --scope /subscriptions/$SUB/resourceGroups/rg-relayhub
 az ad app federated-credential create --id $APP_ID --parameters '{
   "name": "github-main", "issuer": "https://token.actions.githubusercontent.com",
-  "subject": "repo:thongminhtran/relay-hub:ref:refs/heads/main", "audiences": ["api://AzureADTokenExchange"] }'
+  "subject": "repo:thongminhtran@<ownerId>/relay-hub@<repoId>:environment:production", "audiences": ["api://AzureADTokenExchange"] }'
+# (deploy.yml uses the GitHub environment "production"; ids via: gh api users/thongminhtran --jq .id ; gh api repos/thongminhtran/relay-hub --jq .id)
 
 gh variable set AZURE_CLIENT_ID --body $APP_ID
 gh variable set AZURE_TENANT_ID --body $(az account show --query tenantId -o tsv)
