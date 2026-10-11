@@ -2,7 +2,9 @@
 
 Everything runs on free tiers (plan section 10): App Service F1 (API), Azure SQL free offer (serverless, auto-pause), Storage account + queues, Key Vault (RBAC), Log Analytics + Application Insights (0.1 GB/day cap). Functions Flex Consumption and Static Web Apps are added in Weeks 2 and 3.
 
-## One-time bootstrap (from a laptop, signed in with `az login`)
+## One-time bootstrap
+
+Windows: `.\infraootstrap.ps1 -BudgetEmail <you>` does everything below (idempotent). Manual steps, from any machine signed in with `az login` and `gh auth login`:
 
 ```bash
 az account show --query '{name:name,id:id}'                      # confirm the right subscription
