@@ -49,6 +49,12 @@ The project only helps if Tim can defend every decision without looking at the c
 
 Question bank to grow over time: `docs/interview-questions.md` (create it on first use; add every question Tim struggled with and the answer he finally gave).
 
+## Azure subscription
+
+- Free-trial subscription "Azure subscription 1" created 2026-10-11 on tminhthong1999@hotmail.com ($200 credit, spending limit on).
+- **Upgrade to pay-as-you-go before 2026-11-10**, otherwise Azure disables the subscription and the live demo dies. Free tiers stay $0 after the upgrade; the $5 budget alert emails Tim.
+- Resources live in resource group `rg-relayhub` (canadacentral), created by `infra/bootstrap.ps1`. Never create resources by hand in the portal; change `infra/main.bicep` and redeploy.
+
 ## Environment notes
 
 - Windows PC: .NET 10.0.401, Node 24, Docker Desktop 4.94 (WSL2), local SQL container `relayhub-sql`; secrets in user-secrets of `RelayHub.Api`.

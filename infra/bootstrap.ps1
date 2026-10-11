@@ -20,7 +20,16 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-function Invoke-Az { param([string[]] $Args) $out = & az @Args 2>&1; if ($LASTEXITCODE -ne 0) { throw "az $($Args -join ' ') failed:`n$out" }; return $out }
+function Invoke-Az {
+    param([string[]] $Args)
+    # stdout only: az prints welcome banners / warnings on stderr, which would corrupt JSON output.
+    $errFile = Join-Path $env:TEMP ("relayhub-az-" + [guid]::NewGuid().ToString("N") + ".log")
+    $out = & az @Args 2> $errFile
+    $code = $LASTEXITCODE
+    $err = if (Test-Path $errFile) { Get-Content $errFile -Raw; Remove-Item $errFile -ErrorAction SilentlyContinue } else { "" }
+    if ($code -ne 0) { throw "az $($Args -join ' ') failed:`n$err" }
+    return $out
+}
 function New-RandomSecret([int] $bytes) {
     $rng = New-Object System.Security.Cryptography.RNGCryptoServiceProvider
     $buf = New-Object byte[] $bytes; $rng.GetBytes($buf)
