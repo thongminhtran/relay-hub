@@ -4,7 +4,7 @@ Everything runs on free tiers (plan section 10): App Service F1 (API), Azure SQL
 
 ## One-time bootstrap
 
-Windows: `.\infraootstrap.ps1 -BudgetEmail <you>` does everything below (idempotent). Manual steps, from any machine signed in with `az login` and `gh auth login`:
+Windows: `.\infra\bootstrap.ps1 -BudgetEmail <you>` does everything below (idempotent). Manual steps, from any machine signed in with `az login` and `gh auth login`:
 
 ```bash
 az account show --query '{name:name,id:id}'                      # confirm the right subscription
