@@ -30,12 +30,19 @@ public static class EventEndpoints
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(e => new
             {
-                e.Id, e.Channel, e.Direction, e.SenderName, e.SenderHandle, e.Text, e.ReceivedAt, e.CorrelationId, e.ConversationId,
+                e.Id, e.Channel, direction = e.Direction.ToString(), e.SenderName, e.SenderHandle, e.Text, e.ReceivedAt, e.CorrelationId, e.ConversationId,
                 deliveries = e.Deliveries.Select(d => new { d.Id, d.DestinationId, status = d.Status.ToString(), d.AttemptCount, d.LastError }),
             })
             .ToListAsync(ct);
 
-        return Results.Ok(new { items, page, pageSize, total });
+        return Results.Ok(new
+        {
+            items = items.Select(e => new
+            {
+                e.Id, e.Channel, direction = e.direction.ToLowerInvariant(), e.SenderName, e.SenderHandle, e.Text, e.ReceivedAt, e.CorrelationId, e.ConversationId, e.deliveries,
+            }),
+            page, pageSize, total,
+        });
     }
 
     private static async Task<IResult> GetAsync(long id, RelayHubDbContext db, CancellationToken ct)
