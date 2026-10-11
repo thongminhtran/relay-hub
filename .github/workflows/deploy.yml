@@ -1,0 +1,94 @@
+name: Deploy API
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'infra/**'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  id-token: write   # OIDC token for Azure login
+  contents: read
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-relayhub
+  DOTNET_VERSION: 10.0.x
+
+jobs:
+  deploy:
+    name: Infra + API
+    runs-on: ubuntu-latest
+    environment: production
+    # Skips silently until the Azure OIDC variables exist (see infra/README.md).
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy infrastructure (idempotent)
+        id: infra
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          API_KEY_MASTER_KEY: ${{ secrets.API_KEY_MASTER_KEY }}
+        run: |
+          out=$(az deployment group create -g "$RESOURCE_GROUP" -f infra/main.bicep -p infra/main.bicepparam --query properties.outputs -o json)
+          echo "apiName=$(echo "$out" | jq -r .apiName.value)"           >> "$GITHUB_OUTPUT"
+          echo "apiUrl=$(echo "$out" | jq -r .apiUrl.value)"             >> "$GITHUB_OUTPUT"
+          echo "sqlFqdn=$(echo "$out" | jq -r .sqlServerFqdn.value)"     >> "$GITHUB_OUTPUT"
+          echo "sqlDb=$(echo "$out" | jq -r .sqlDatabaseName.value)"     >> "$GITHUB_OUTPUT"
+          echo "sqlServer=$(echo "$out" | jq -r .sqlServerFqdn.value | cut -d. -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore, build, publish API
+        run: |
+          dotnet restore
+          dotnet publish src/RelayHub.Api -c Release -o publish/api --no-restore
+
+      - name: Build EF Core migration bundle
+        run: |
+          dotnet tool restore
+          dotnet ef migrations bundle -p src/RelayHub.Infrastructure -s src/RelayHub.Api -o publish/efbundle --self-contained -r linux-x64 --force
+
+      - name: Apply migrations (temporary firewall rule for this runner)
+        env:
+          SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+        run: |
+          ip=$(curl -fsS https://api.ipify.org)
+          az sql server firewall-rule create -g "$RESOURCE_GROUP" -s "${{ steps.infra.outputs.sqlServer }}" -n "gh-runner-${{ github.run_id }}" --start-ip-address "$ip" --end-ip-address "$ip" -o none
+          trap 'az sql server firewall-rule delete -g "$RESOURCE_GROUP" -s "${{ steps.infra.outputs.sqlServer }}" -n "gh-runner-${{ github.run_id }}" -o none' EXIT
+          # Serverless SQL may be waking up: retry a few times.
+          for i in 1 2 3 4 5 6; do
+            publish/efbundle --connection "Server=tcp:${{ steps.infra.outputs.sqlFqdn }},1433;Database=${{ steps.infra.outputs.sqlDb }};User Id=relayhubadmin;Password=$SQL_ADMIN_PASSWORD;Encrypt=True;Connection Timeout=60" && exit 0
+            echo "migration attempt $i failed; waiting for the database to resume..."; sleep 20
+          done
+          exit 1
+
+      - name: Deploy package to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ steps.infra.outputs.apiName }}
+          package: publish/api
+
+      - name: Smoke check
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "${{ steps.infra.outputs.apiUrl }}/health"; then echo; echo "API is up: ${{ steps.infra.outputs.apiUrl }}"; exit 0; fi
+            sleep 15
+          done
+          echo "API did not answer /health in time"; exit 1

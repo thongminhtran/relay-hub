@@ -18,7 +18,7 @@ Done:
 - Plan v2 + regenerated architecture diagram; clickable mockup in `mockup/`.
 
 Not done in Week 1:
-- **Deploy the API to Azure App Service F1 + Azure SQL free offer via GitHub Actions.** Blocked until Tim creates the Azure account (free tier, needs a card) and sets the $5 budget alert. Then: Bicep for resource group + App Service F1 + SQL free + Key Vault + Storage, GitHub Actions OIDC deploy, EF migration bundle in the pipeline.
+- **Deploy the API to Azure.** Written and compiled, not yet run: `infra/main.bicep` (App Service F1, SQL free offer with auto-pause, Storage + queues, Key Vault RBAC, Log Analytics capped + App Insights, managed-identity role assignments), `infra/budget.bicep` ($5 budget alert), `.github/workflows/deploy.yml` (OIDC login → Bicep → publish → EF migration bundle through a temporary SQL firewall rule → App Service deploy → /health smoke). Bootstrap steps are in `infra/README.md`. Waiting on Tim's Azure free-trial subscription (account tminhthong1999@hotmail.com created 2026-10-11).
 
 ## Next steps, in order
 

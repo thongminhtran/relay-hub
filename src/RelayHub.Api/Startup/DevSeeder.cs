@@ -56,8 +56,11 @@ public static class DevSeeder
             await db.SaveChangesAsync();
         }
 
-        // The key is derived from the master key, so it can always be re-displayed; it is never stored.
-        log.LogInformation("Source '{Source}' API key (send as X-Api-Key): {ApiKey}", source.Name, ApiKeys.Create(source.KeyId, options.ApiKeyMasterKey));
+        // The key is derived from the master key, so it can always be re-issued; it is never stored.
+        if (app.Environment.IsDevelopment())
+            log.LogInformation("Source '{Source}' API key (send as X-Api-Key): {ApiKey}", source.Name, ApiKeys.Create(source.KeyId, options.ApiKeyMasterKey));
+        else
+            log.LogInformation("Source '{Source}' ready (id {Id}); call POST /api/v1/sources/{Id}/rotate-key to obtain its API key.", source.Name, source.Id, source.Id);
 
         if (!string.IsNullOrWhiteSpace(options.SeedDiscordWebhookUrl)
             && !await db.Destinations.AnyAsync(d => d.WorkspaceId == studio.Id && d.Type == DestinationType.Discord))
