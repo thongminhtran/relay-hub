@@ -67,3 +67,4 @@ cd web && npm ci && npm run build
 - Entity named `Delivery` ⇒ do not create a namespace called `...Delivery` in Infrastructure (it clashes); the dispatcher lives in `RelayHub.Infrastructure.Dispatch`.
 - Commit messages: imperative summary + short bullet body. CI (`.github/workflows/ci.yml`) must stay green.
 - Tim prefers chat replies in Vietnamese (casual); code, comments and docs stay in English.
+- Interview prep: when Tim asks to practise, follow the "Interview prep routine" in `docs/HANDOFF.md` (mock interview in English on the decisions above, follow-up questions, model answers, build-journal stories).

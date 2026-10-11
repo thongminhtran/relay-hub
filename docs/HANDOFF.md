@@ -38,6 +38,17 @@ Not done in Week 1:
 - Discord / Telegram / email are borrowed push notifications (no mobile app).
 - Real users are a bonus from Tim's network, not a goal; resume metrics must be real.
 
+## Interview prep routine (run this with Tim, in English)
+
+The project only helps if Tim can defend every decision without looking at the code. Routine, about 30 minutes per session:
+
+1. Tim reads one unit: the "Decisions" list in `CLAUDE.md`, plan section 5.2 (design decisions), section 14 (talking points), section 12 (skills map), or one entry of the build journal below.
+2. The agent runs a **mock interview in English**: ask like a real Calgary interviewer, follow up on every answer ("why not Service Bus?", "what if SQL is paused?", "how do you stop tenant A seeing tenant B?", "walk me through one message end to end"), push back on vague answers, then give a short model answer and the one-line version for a resume conversation.
+3. Finish with the 30-second pitch (plan section 13.1) said out loud, and one "hardest bug" story from the build journal.
+4. Explanations of concepts Tim does not know yet: beginner level, prerequisites first, analogies, then the precise term. Code, docs and interview practice stay in English; casual chat can be Vietnamese.
+
+Question bank to grow over time: `docs/interview-questions.md` (create it on first use; add every question Tim struggled with and the answer he finally gave).
+
 ## Environment notes
 
 - Windows PC: .NET 10.0.401, Node 24, Docker Desktop 4.94 (WSL2), local SQL container `relayhub-sql`; secrets in user-secrets of `RelayHub.Api`.
