@@ -1,15 +1,13 @@
-using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using RelayHub.Api.Startup;
-using RelayHub.Core.Abstractions;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Security;
-using RelayHub.Core.Templates;
 using RelayHub.Infrastructure;
 using RelayHub.Infrastructure.Data;
+using RelayHub.Infrastructure.Dispatch;
 
 namespace RelayHub.Api.Endpoints;
 
@@ -20,7 +18,7 @@ public static class IngestEndpoints
         app.MapPost("/api/v1/hooks/{sourceKey}", IngestGenericAsync)
            .WithName("IngestGeneric")
            .WithTags("Ingest")
-           .WithSummary("Generic source ingest (e.g. the website contact form). Requires X-Api-Key.")
+           .WithSummary("Generic source ingest (e.g. the website contact form). Requires X-Api-Key; Idempotency-Key is honoured.")
            .Accepts<JsonElement>("application/json")
            .Produces(StatusCodes.Status202Accepted)
            .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -35,7 +33,7 @@ public static class IngestEndpoints
         RelayHubDbContext db,
         AmbientWorkspace ambient,
         IOptions<RelayHubOptions> options,
-        IEnumerable<IDestinationConnector> connectors,
+        DeliveryDispatcher dispatcher,
         ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
@@ -63,6 +61,7 @@ public static class IngestEndpoints
         var text = GetString(payload, "message") ?? GetString(payload, "text") ?? "";
         var externalId = request.Headers["Idempotency-Key"].ToString();
         if (string.IsNullOrWhiteSpace(externalId)) externalId = Guid.NewGuid().ToString("N");
+        if (externalId.Length > 200) externalId = externalId[..200];
 
         var threadKey = (email ?? name).Trim().ToLowerInvariant();
         var conversation = await db.Conversations
@@ -79,10 +78,10 @@ public static class IngestEndpoints
             WorkspaceId = source.WorkspaceId,
             SourceId = source.Id,
             ExternalId = externalId,
-            Channel = source.Type.ToString().ToLowerInvariant() == "generic" ? "web" : source.Type.ToString().ToLowerInvariant(),
+            Channel = source.Type == SourceType.Generic ? "web" : source.Type.ToString().ToLowerInvariant(),
             SenderName = name,
             SenderHandle = email,
-            Text = text,
+            Text = text.Length > 4000 ? text[..4000] : text,
             PayloadJson = payload.GetRawText(),
             CorrelationId = correlationId,
         };
@@ -100,56 +99,9 @@ public static class IngestEndpoints
             return Results.Accepted(value: new { status = "duplicate", correlationId });
         }
 
-        var routes = await db.Routes.Where(r => r.SourceId == source.Id && r.IsEnabled).ToListAsync(ct);
-        var destinationIds = routes.Select(r => r.DestinationId).ToList();
-        var destinations = await db.Destinations.Where(d => destinationIds.Contains(d.Id) && d.IsEnabled).ToDictionaryAsync(d => d.Id, ct);
+        var deliveries = await dispatcher.DispatchAsync(evt, source, ct);
 
-        var values = new Dictionary<string, string?>
-        {
-            ["name"] = name, ["email"] = email, ["text"] = text, ["channel"] = evt.Channel, ["source"] = source.Name,
-        };
-
-        foreach (var route in routes)
-        {
-            if (!destinations.TryGetValue(route.DestinationId, out var destination)) continue;
-
-            var delivery = new Delivery { EventId = evt.Id, DestinationId = destination.Id };
-            db.Deliveries.Add(delivery);
-            await db.SaveChangesAsync(ct);
-
-            var connector = connectors.FirstOrDefault(c => c.Type == destination.Type);
-            var rendered = TemplateRenderer.Render(route.Template, values);
-            var sw = Stopwatch.StartNew();
-            DeliveryResult result;
-            try
-            {
-                result = connector is null
-                    ? new DeliveryResult(false, null, $"No connector for {destination.Type}", Retryable: false)
-                    : await connector.SendAsync(destination, rendered, evt, ct);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-            {
-                result = new DeliveryResult(false, null, ex.Message);
-            }
-            sw.Stop();
-
-            delivery.AttemptCount = 1;
-            delivery.Attempts.Add(new DeliveryAttempt { AttemptNo = 1, DurationMs = (int)sw.ElapsedMilliseconds, HttpStatus = result.HttpStatus, Error = result.Error });
-            if (result.Succeeded)
-            {
-                delivery.Status = DeliveryStatus.Delivered;
-            }
-            else
-            {
-                delivery.LastError = result.Error;
-                delivery.Status = result.Retryable ? DeliveryStatus.Retrying : DeliveryStatus.DeadLettered;
-                delivery.NextAttemptAt = result.Retryable ? DateTimeOffset.UtcNow.AddSeconds(30) : null; // picked up by the worker (Week 2)
-                log.LogWarning("Delivery {DeliveryId} to {Destination} failed: {Error}", delivery.Id, destination.Name, result.Error);
-            }
-            await db.SaveChangesAsync(ct);
-        }
-
-        return Results.Accepted(value: new { status = "accepted", correlationId, eventId = evt.Id, deliveries = routes.Count });
+        return Results.Accepted(value: new { status = "accepted", correlationId, eventId = evt.Id, deliveries });
     }
 
     private static string? GetString(JsonElement obj, string property)

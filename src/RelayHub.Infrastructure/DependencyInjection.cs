@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RelayHub.Core.Abstractions;
 using RelayHub.Infrastructure.Connectors;
 using RelayHub.Infrastructure.Data;
+using RelayHub.Infrastructure.Dispatch;
 
 namespace RelayHub.Infrastructure;
 
@@ -24,6 +25,7 @@ public static class DependencyInjection
 
         services.AddHttpClient<DiscordConnector>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IDestinationConnector>(sp => sp.GetRequiredService<DiscordConnector>());
+        services.AddScoped<DeliveryDispatcher>();
 
         return services;
     }

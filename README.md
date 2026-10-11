@@ -48,9 +48,10 @@ docs/                        plan, architecture diagram, clickable mockup
    { "name": "Anna Nguyen", "email": "anna@example.com", "message": "Do you build websites for restaurants?" }
    ```
    Response `202 Accepted` with a correlation id; the message is stored and (if a Discord route exists) posted to Discord. Sending it again with the same `Idempotency-Key` is ignored.
-5. Dashboard: `cd web && npm install && npm run dev` (Week 3).
+5. Configure through the API (all under `/docs`): `POST /api/v1/sources` returns the API key once, `POST /api/v1/destinations` (Discord: `{ "webhookUrl": "..." }`), `POST /api/v1/destinations/{id}/test`, `POST /api/v1/routes` with a `{{name}} {{text}} {{channel}}` template. `scripts/smoke.sh` runs the whole flow with curl.
+6. Dashboard: `cd web && npm install && npm run dev` (Week 3).
 
-Tests: `dotnet test`. Migrations: `dotnet ef migrations add <Name> -p src/RelayHub.Infrastructure`.
+Tests: `dotnet test` (unit + in-process API). `dotnet test --filter Category=Docker` additionally runs the end-to-end flow against SQL Server in Docker via Testcontainers. Migrations: `dotnet ef migrations add <Name> -p src/RelayHub.Infrastructure`.
 
 ## Roadmap
 

@@ -43,6 +43,9 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r
 
 app.MapIngestEndpoints();
 app.MapEventEndpoints();
+app.MapSourceEndpoints();
+app.MapDestinationEndpoints();
+app.MapRouteEndpoints();
 
 await DevSeeder.RunAsync(app);
 
