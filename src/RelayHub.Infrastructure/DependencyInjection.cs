@@ -1,9 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using RelayHub.Core.Abstractions;
+using RelayHub.Core.Messaging;
+using RelayHub.Infrastructure.Alerts;
 using RelayHub.Infrastructure.Connectors;
 using RelayHub.Infrastructure.Data;
 using RelayHub.Infrastructure.Dispatch;
+using RelayHub.Infrastructure.Messaging;
+using RelayHub.Infrastructure.Processing;
 
 namespace RelayHub.Infrastructure;
 
@@ -12,6 +17,7 @@ public static class DependencyInjection
     private const string FallbackConnectionString =
         "Server=localhost,1433;Database=RelayHub;User Id=sa;Password=CHANGE_ME;TrustServerCertificate=True";
 
+    /// <summary>Database, connectors, dispatcher and the worker-side processors. Shared by the API and the Functions worker.</summary>
     public static IServiceCollection AddRelayHubInfrastructure(this IServiceCollection services, string? connectionString)
     {
         services.AddScoped<AmbientWorkspace>();
@@ -26,12 +32,26 @@ public static class DependencyInjection
         services.AddHttpClient<DiscordConnector>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IDestinationConnector>(sp => sp.GetRequiredService<DiscordConnector>());
         services.AddScoped<DeliveryDispatcher>();
+        services.AddScoped<IncomingProcessor>();
+        services.AddScoped<DeliveryProcessor>();
+
+        return services;
+    }
+
+    /// <summary>Storage Queues (section "Storage") and operator alerts ("RelayHub:OpsDiscordWebhookUrl").</summary>
+    public static IServiceCollection AddRelayHubMessaging(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
+        services.AddSingleton<IRelayQueues, StorageQueues>();
+
+        services.Configure<OpsAlertOptions>(configuration.GetSection(OpsAlertOptions.SectionName));
+        services.AddHttpClient<IOpsAlerts, DiscordOpsAlerts>(client => client.Timeout = TimeSpan.FromSeconds(10));
 
         return services;
     }
 }
 
-/// <summary>Per-request workspace scope. Set by the API (from auth) or by the worker (from the queue message).</summary>
+/// <summary>Per-request / per-invocation workspace scope. Set by the API (from auth) or by the worker (from the queue message).</summary>
 public sealed class AmbientWorkspace : ICurrentWorkspace
 {
     public int? WorkspaceId { get; set; }

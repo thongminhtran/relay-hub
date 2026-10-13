@@ -2,6 +2,9 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using RelayHub.Api.Endpoints;
 using RelayHub.Api.Startup;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Trace;
+using RelayHub.Core.Telemetry;
 using RelayHub.Infrastructure;
 using Scalar.AspNetCore;
 
@@ -11,7 +14,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.Configure<RelayHubOptions>(builder.Configuration.GetSection(RelayHubOptions.SectionName));
 builder.Services.AddRelayHubInfrastructure(builder.Configuration.GetConnectionString("RelayHub"));
+builder.Services.AddRelayHubMessaging(builder.Configuration);
 builder.Services.AddHealthChecks().AddCheck<SqlHealthCheck>("sql", tags: ["ready"]);
+
+// OpenTelemetry → Application Insights (Azure Monitor distro): requests, dependencies (SQL, HTTP, queue) and logs.
+// The W3C trace id of each ingest request travels inside the queue message, so the worker's spans join the same trace.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+    builder.Services.AddOpenTelemetry().UseAzureMonitor().WithTracing(t => t.AddSource(RelayHubTelemetry.SourceName));
 
 var app = builder.Build();
 
@@ -43,6 +52,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r
 
 app.MapIngestEndpoints();
 app.MapEventEndpoints();
+app.MapDeliveryEndpoints();
 app.MapSourceEndpoints();
 app.MapDestinationEndpoints();
 app.MapRouteEndpoints();

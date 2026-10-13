@@ -8,8 +8,6 @@ namespace RelayHub.Api.Endpoints;
 
 public static class RouteEndpoints
 {
-    private const string DefaultTemplate = "**New message from {{name}}** via {{channel}}\n{{text}}";
-
     public sealed record CreateRouteRequest(int SourceId, int DestinationId, string? Template, string? Filter);
     public sealed record UpdateRouteRequest(string? Template, string? Filter, bool? IsEnabled);
     public sealed record RouteDto(int Id, int SourceId, int DestinationId, string Template, string? Filter, bool IsEnabled);
@@ -39,7 +37,7 @@ public static class RouteEndpoints
         if (!await db.Sources.AnyAsync(s => s.Id == request.SourceId, ct)) return ValidationProblem("sourceId", "Source not found in this workspace");
         if (!await db.Destinations.AnyAsync(d => d.Id == request.DestinationId, ct)) return ValidationProblem("destinationId", "Destination not found in this workspace");
 
-        var template = string.IsNullOrWhiteSpace(request.Template) ? DefaultTemplate : request.Template.Trim();
+        var template = string.IsNullOrWhiteSpace(request.Template) ? DomainRoute.DefaultTemplate : request.Template.Trim();
         if (template.Length > 2000) return ValidationProblem("template", "Template must be at most 2000 characters");
 
         var route = new DomainRoute

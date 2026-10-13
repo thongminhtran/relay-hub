@@ -47,18 +47,21 @@ jobs:
         env:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           API_KEY_MASTER_KEY: ${{ secrets.API_KEY_MASTER_KEY }}
+          OPS_DISCORD_WEBHOOK_URL: ${{ secrets.OPS_DISCORD_WEBHOOK_URL }}
         run: |
           out=$(az deployment group create -g "$RESOURCE_GROUP" -f infra/main.bicep -p infra/main.bicepparam --query properties.outputs -o json)
           echo "apiName=$(echo "$out" | jq -r .apiName.value)"           >> "$GITHUB_OUTPUT"
+          echo "workerName=$(echo "$out" | jq -r .workerName.value)"     >> "$GITHUB_OUTPUT"
           echo "apiUrl=$(echo "$out" | jq -r .apiUrl.value)"             >> "$GITHUB_OUTPUT"
           echo "sqlFqdn=$(echo "$out" | jq -r .sqlServerFqdn.value)"     >> "$GITHUB_OUTPUT"
           echo "sqlDb=$(echo "$out" | jq -r .sqlDatabaseName.value)"     >> "$GITHUB_OUTPUT"
           echo "sqlServer=$(echo "$out" | jq -r .sqlServerFqdn.value | cut -d. -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Restore, build, publish API
+      - name: Restore, build, publish API + worker
         run: |
           dotnet restore
           dotnet publish src/RelayHub.Api -c Release -o publish/api --no-restore
+          dotnet publish src/RelayHub.Worker -c Release -o publish/worker --no-restore
 
       - name: Build EF Core migration bundle
         run: |
@@ -79,6 +82,15 @@ jobs:
           done
           exit 1
 
+      # Worker first: once the queue-first API is live, every ingest needs a worker to drain the incoming queue.
+      - name: Deploy worker to Functions (Flex Consumption)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.infra.outputs.workerName }}
+          package: publish/worker
+          sku: flexconsumption
+          remote-build: false
+
       - name: Deploy package to App Service
         uses: azure/webapps-deploy@v3
         with:
@@ -92,3 +104,12 @@ jobs:
             sleep 15
           done
           echo "API did not answer /health in time"; exit 1
+
+      - name: Worker functions registered
+        run: |
+          for i in $(seq 1 12); do
+            names=$(az functionapp function list -g "$RESOURCE_GROUP" -n "${{ steps.infra.outputs.workerName }}" --query "[].name" -o tsv 2>/dev/null | tr '\n' ' ')
+            if echo "$names" | grep -q ProcessIncoming && echo "$names" | grep -q ProcessDelivery; then echo "worker functions: $names"; exit 0; fi
+            echo "waiting for the worker to sync its triggers ($names)"; sleep 10
+          done
+          echo "worker functions did not appear"; exit 1

@@ -60,11 +60,13 @@ public sealed class Destination
 /// <summary>A rule: events from Source go to Destination using Template.</summary>
 public sealed class Route
 {
+    public const string DefaultTemplate = "**New message from {{name}}** via {{channel}}\n{{text}}";
+
     public int Id { get; set; }
     public int WorkspaceId { get; set; }
     public int SourceId { get; set; }
     public int DestinationId { get; set; }
-    public string Template { get; set; } = "New message from {{name}} ({{channel}}): {{text}}";
+    public string Template { get; set; } = DefaultTemplate;
     public string? Filter { get; set; }
     public bool IsEnabled { get; set; } = true;
 }
@@ -96,6 +98,8 @@ public sealed class Delivery
     public long Id { get; set; }
     public long EventId { get; set; }
     public int DestinationId { get; set; }
+    /// <summary>The route whose template is rendered on every attempt (retries and replays re-render). Null if the route was deleted.</summary>
+    public int? RouteId { get; set; }
     public DeliveryStatus Status { get; set; } = DeliveryStatus.Pending;
     public int AttemptCount { get; set; }
     public DateTimeOffset? NextAttemptAt { get; set; }

@@ -19,3 +19,9 @@ public interface IDestinationConnector
     DestinationType Type { get; }
     Task<DeliveryResult> SendAsync(Destination destination, string text, Event evt, CancellationToken ct);
 }
+
+/// <summary>Self-alerting: RelayHub tells its operator when something needs a human (dead-letter, poison message). Never throws.</summary>
+public interface IOpsAlerts
+{
+    Task NotifyAsync(string title, string detail, CancellationToken ct);
+}

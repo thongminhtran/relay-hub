@@ -1,4 +1,5 @@
 // RelayHub infrastructure — resource-group scope. All free tiers; see docs/plan-src/plan.md section 10.
+// Week 2 adds the Functions Flex Consumption worker, the poison queues and the operator-alert secret.
 // Deploy: az deployment group create -g rg-relayhub -f infra/main.bicep -p infra/main.bicepparam
 targetScope = 'resourceGroup'
 
@@ -29,6 +30,13 @@ param apiKeyMasterKey string
 
 @description('Object id of the person who deploys locally (gets Key Vault Secrets Officer). Leave empty in CI.')
 param deployerObjectId string = ''
+
+@description('Region for the Functions Flex Consumption plan (the worker). Not every region offers Flex; Canada Central does.')
+param functionsLocation string = 'canadacentral'
+
+@secure()
+@description('Optional Discord incoming-webhook URL for operator alerts (dead-letters, poison messages). Empty = alerts only go to the logs.')
+param opsDiscordWebhookUrl string = ''
 
 var suffix = toLower('${appName}-${env}')
 // Key Vault, storage and SQL server names are globally unique across all of Azure: add a stable per-subscription suffix.
@@ -87,6 +95,18 @@ resource secretMasterKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   name: 'RelayHub--ApiKeyMasterKey'
   properties: { value: apiKeyMasterKey }
 }
+
+resource secretOpsWebhook 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(opsDiscordWebhookUrl)) {
+  parent: keyVault
+  name: 'RelayHub--OpsDiscordWebhookUrl'
+  properties: { value: opsDiscordWebhookUrl }
+}
+
+// App setting shared by the API and the worker; only present when the secret exists (a Key Vault reference to a missing secret
+// is handed to the app as the literal reference string, which the alert sender would then try to POST to).
+var opsWebhookSettings = empty(opsDiscordWebhookUrl) ? [] : [
+  { name: 'RelayHub__OpsDiscordWebhookUrl', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=RelayHub--OpsDiscordWebhookUrl)' }
+]
 
 // ---------- Data: Azure SQL free offer (serverless, auto-pause until next month when the free limit is used up) ----------
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
@@ -153,6 +173,28 @@ resource queueDeliveries 'Microsoft.Storage/storageAccounts/queueServices/queues
   name: 'deliveries'
 }
 
+// The Functions host parks a message here after it crashed the function maxDequeueCount times; PoisonAlerts watches both.
+resource queueIncomingPoison 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: queues
+  name: 'incoming-poison'
+}
+
+resource queueDeliveriesPoison 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
+  parent: queues
+  name: 'deliveries-poison'
+}
+
+resource blobs 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+  parent: storage
+  name: 'default'
+}
+
+// Flex Consumption keeps the deployed package in a blob container (accessed with the worker's managed identity).
+resource workerPackageContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobs
+  name: 'app-package-worker'
+}
+
 // ---------- Compute: App Service F1 (Linux) for the API ----------
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: 'asp-${suffix}'
@@ -178,7 +220,7 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
       ftpsState: 'Disabled'
       minTlsVersion: '1.2'
       http20Enabled: true
-      appSettings: [
+      appSettings: concat([
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
@@ -186,7 +228,53 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'RelayHub__MigrateOnStartup', value: 'false' }
         { name: 'RelayHub__SeedOnStartup', value: 'true' }
         { name: 'Storage__QueueServiceUri', value: 'https://${storage.name}.queue.${environment().suffixes.storage}' }
-      ]
+      ], opsWebhookSettings)
+    }
+  }
+}
+
+// ---------- Compute: Functions Flex Consumption for the worker (free grant: 250k executions + 100k GB-s / month) ----------
+resource workerPlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: 'asp-${suffix}-worker'
+  location: functionsLocation
+  tags: tags
+  kind: 'functionapp'
+  sku: { name: 'FC1', tier: 'FlexConsumption' }
+  properties: { reserved: true }
+}
+
+resource worker 'Microsoft.Web/sites@2023-12-01' = {
+  name: 'func-${suffix}-worker-${unique}'
+  location: functionsLocation
+  tags: tags
+  kind: 'functionapp,linux'
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    serverFarmId: workerPlan.id
+    httpsOnly: true
+    functionAppConfig: {
+      deployment: {
+        storage: {
+          type: 'blobContainer'
+          value: '${storage.properties.primaryEndpoints.blob}${workerPackageContainer.name}'
+          authentication: { type: 'SystemAssignedIdentity' }
+        }
+      }
+      scaleAndConcurrency: {
+        maximumInstanceCount: 40
+        instanceMemoryMB: 2048
+      }
+      runtime: { name: 'dotnet-isolated', version: '10.0' }
+    }
+    siteConfig: {
+      minTlsVersion: '1.2'
+      appSettings: concat([
+        // Host storage (locks, poison queues) and the queue triggers: identity-based, no connection string anywhere.
+        { name: 'AzureWebJobsStorage__accountName', value: storage.name }
+        { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+        { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
+        { name: 'Storage__QueueServiceUri', value: 'https://${storage.name}.queue.${environment().suffixes.storage}' }
+      ], opsWebhookSettings)
     }
   }
 }
@@ -195,6 +283,9 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
 var roleKeyVaultSecretsUser = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')
 var roleKeyVaultSecretsOfficer = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
 var roleStorageQueueDataContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
+var roleStorageBlobDataOwner = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
+var roleStorageTableDataContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aebd')
+var roleStorageAccountContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')
 
 resource apiReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, api.id, roleKeyVaultSecretsUser)
@@ -216,6 +307,37 @@ resource apiUsesQueues 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// ---------- RBAC: the worker's managed identity — secrets, host storage (blob/table/queue) and the deployment container ----------
+resource workerReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, worker.id, roleKeyVaultSecretsUser)
+  scope: keyVault
+  properties: { roleDefinitionId: roleKeyVaultSecretsUser, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource workerOwnsBlobs 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, worker.id, roleStorageBlobDataOwner)
+  scope: storage
+  properties: { roleDefinitionId: roleStorageBlobDataOwner, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource workerUsesQueues 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, worker.id, roleStorageQueueDataContributor)
+  scope: storage
+  properties: { roleDefinitionId: roleStorageQueueDataContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource workerUsesTables 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, worker.id, roleStorageTableDataContributor)
+  scope: storage
+  properties: { roleDefinitionId: roleStorageTableDataContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource workerManagesStorageAccount 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, worker.id, roleStorageAccountContributor)
+  scope: storage
+  properties: { roleDefinitionId: roleStorageAccountContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
 resource deployerManagesSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerObjectId)) {
   name: guid(keyVault.id, deployerObjectId, roleKeyVaultSecretsOfficer)
   scope: keyVault
@@ -228,6 +350,7 @@ resource deployerManagesSecrets 'Microsoft.Authorization/roleAssignments@2022-04
 
 output apiName string = api.name
 output apiUrl string = 'https://${api.properties.defaultHostName}'
+output workerName string = worker.name
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabaseName string = sqlDb.name
 output keyVaultName string = keyVault.name

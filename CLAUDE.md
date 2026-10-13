@@ -11,15 +11,15 @@ The plan is the source of truth: `docs/plan-src/plan.md` (readable) → `docs/Re
 ## Layout
 
 ```
-src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest, REST API, Scalar docs at /docs
-src/RelayHub.Worker          Azure Functions isolated worker (queue triggers) — stub until Week 2
-src/RelayHub.Core            entities, enums, IDestinationConnector, ApiKeys (HMAC), TemplateRenderer
-src/RelayHub.Infrastructure  EF Core DbContext + migrations, connectors (Discord), DeliveryDispatcher
+src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest (verify + enqueue only), REST API, replay, Scalar docs at /docs
+src/RelayHub.Worker          Azure Functions isolated worker: ProcessIncoming (incoming queue), ProcessDelivery (deliveries queue), PoisonAlerts
+src/RelayHub.Core            entities, enums, IDestinationConnector, IRelayQueues + queue message records, ApiKeys (HMAC), TemplateRenderer
+src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
 web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
-infra/                       Bicep (Week 5)
-scripts/smoke.sh             curl walk-through of the Week 1 flow against a running API
+infra/                       Bicep: App Service F1 (API), Functions Flex Consumption (worker), SQL free offer, Storage queues, Key Vault, App Insights
+scripts/smoke.sh             curl walk-through of the flow against a running API (+ Azurite + worker for the stored event)
 ```
 
 ## Commands
@@ -28,7 +28,8 @@ scripts/smoke.sh             curl walk-through of the Week 1 flow against a runn
 dotnet build RelayHub.slnx
 dotnet test RelayHub.slnx --filter "Category!=Docker"   # what CI runs
 dotnet test RelayHub.slnx                                # also the Docker/Testcontainers flow (needs Docker)
-dotnet run --project src/RelayHub.Api --urls http://localhost:5000   # then BASE=http://localhost:5000 bash scripts/smoke.sh
+dotnet run --project src/RelayHub.Api --urls http://localhost:5080   # then BASE=http://localhost:5080 bash scripts/smoke.sh
+cd src/RelayHub.Worker && func start                                 # worker against Azurite + local SQL (local.settings.json)
 dotnet ef migrations add <Name> -p src/RelayHub.Infrastructure        # dotnet-ef is a local tool (dotnet-tools.json)
 cd web && npm ci && npm run build
 ```
@@ -36,7 +37,8 @@ cd web && npm ci && npm run build
 ## Local setup (per machine)
 
 1. .NET 10 SDK, Node 24, Docker.
-2. SQL Server in Docker: `docker run -d --name relayhub-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<strong pw>' -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`. On Apple Silicon the image is amd64: enable Rosetta / "Use Rosetta for x86_64 emulation" in Docker Desktop, or use Colima (`colima start --vm-type vz --vz-rosetta`) and export `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` plus `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`. On macOS run the API on a port other than 5000 (AirPlay Receiver owns it): `--urls http://localhost:5080`.
+2. Azurite (queues) in Docker: `docker run -d --name relayhub-azurite -p 10000-10002:10000-10002 --restart unless-stopped mcr.microsoft.com/azure-storage/azurite`. `appsettings.Development.json` and `local.settings.sample.json` already use `UseDevelopmentStorage=true`.
+   SQL Server in Docker: `docker run -d --name relayhub-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<strong pw>' -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`. On Apple Silicon the image is amd64: enable Rosetta / "Use Rosetta for x86_64 emulation" in Docker Desktop, or use Colima (`colima start --vm-type vz --vz-rosetta`) and export `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` plus `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`. On macOS run the API on a port other than 5000 (AirPlay Receiver owns it): `--urls http://localhost:5080`.
 3. Secrets live in user-secrets, never in the repo:
    ```bash
    cd src/RelayHub.Api
@@ -48,10 +50,14 @@ cd web && npm ci && npm run build
    ```
    After `user-secrets init` or any csproj change, rebuild before `dotnet run --no-build` (the secrets id is compiled in).
 4. The seeder logs the `website-contact` API key on startup. Keys are derived from the master key, never stored.
+5. Worker: `cp src/RelayHub.Worker/local.settings.sample.json src/RelayHub.Worker/local.settings.json` and put the same SQL connection string in it (gitignored). `func` = Azure Functions Core Tools v4 (`npm i -g azure-functions-core-tools@4` works on macOS when the Homebrew tap is refused).
 
 ## Decisions that must not be undone (see plan sections 5.2 and 4.3)
 
-- Queue-first ingest: webhook endpoints verify the signature and enqueue; never touch SQL on the hot path (Week 2 moves delivery behind Storage Queues; Week 1 delivers inline on purpose).
+- Queue-first ingest: webhook endpoints verify the signature and enqueue; they never touch SQL. The worker resolves the source from the key id (so revocation and the source-name check happen at processing time), stores the event, creates Pending deliveries and queues one `DeliveryMessage` per delivery.
+- One queue message = one delivery attempt. Connector failures are handled in `DeliveryProcessor` (re-enqueue with `DeliveryDispatcher.DelayAfter` as the visibility delay, dead-letter after 5, alert); only crashes throw, so the Functions host retries (`maxDequeueCount` 5) and parks the message on `{queue}-poison`, which `PoisonAlerts` reports.
+- At-least-once, made safe: events dedupe on (SourceId, ExternalId); a `DeliveryMessage` carries `AfterAttempt` and is skipped when the delivery's AttemptCount moved on (duplicate or stale retry after a replay). Accepted trade-off: a destination may very rarely see the same notification twice.
+- Replay (`POST /api/v1/deliveries/{id}/replay`) keeps the attempt history and gives exactly one more attempt; it is also the recovery for a delivery stuck in Retrying (worker crashed between SaveChanges and re-enqueue). Nothing polls SQL for stuck deliveries on purpose.
 - Never poll Azure SQL (serverless free offer must sleep). `/health` never touches the DB; `/health/ready` does.
 - Every query is workspace-scoped through EF Core global query filters (`ICurrentWorkspace`). Until JWT auth (Week 3) the workspace comes from the `X-Workspace-Id` header, default 1 = Studio. Do not remove the filters.
 - Source API keys are stateless signed keys `src_{keyId}_{hmac}`; verify with constant-time compare; the key id finds the source.
@@ -59,7 +65,8 @@ cd web && npm ci && npm run build
 - Discord / Telegram / email are "borrowed" push notifications; there is no mobile app.
 - Meta channels: the app stays in development mode (only role holders can message it). The public demo uses simulators, never live Meta. Real-usage metrics come from the website form, email and Telegram.
 - Resume and README metrics must be real numbers. Keep a build journal of real bugs in `docs/` for interview stories.
-- Secrets and webhook URLs never go into the repo or into API responses (configs are masked).
+- Secrets and webhook URLs never go into the repo or into API responses (configs are masked). Azure: Key Vault references + system-assigned managed identities for the API and the worker; the worker's host storage and both apps' queue access are identity-based (`AzureWebJobsStorage__accountName`, `Storage:QueueServiceUri` + DefaultAzureCredential). SQL still uses SQL auth through Key Vault (Entra-only auth is a later step).
+- Trace context travels in the queue message (`TraceParent`); each worker function starts an Activity with that parent. OpenTelemetry → Application Insights in both apps (API: Azure Monitor distro; worker: Functions OpenTelemetry + Azure Monitor exporter), enabled only when `APPLICATIONINSIGHTS_CONNECTION_STRING` is set.
 
 ## Conventions
 
