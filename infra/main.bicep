@@ -284,7 +284,6 @@ var roleKeyVaultSecretsUser = subscriptionResourceId('Microsoft.Authorization/ro
 var roleKeyVaultSecretsOfficer = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')
 var roleStorageQueueDataContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
 var roleStorageBlobDataOwner = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
-var roleStorageTableDataContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aebd')
 var roleStorageAccountContributor = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')
 
 resource apiReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -307,7 +306,7 @@ resource apiUsesQueues 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-// ---------- RBAC: the worker's managed identity — secrets, host storage (blob/table/queue) and the deployment container ----------
+// ---------- RBAC: the worker's managed identity — secrets, host storage (blob + queue; no tables: no Durable Functions) and the deployment container ----------
 resource workerReadsSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, worker.id, roleKeyVaultSecretsUser)
   scope: keyVault
@@ -324,12 +323,6 @@ resource workerUsesQueues 'Microsoft.Authorization/roleAssignments@2022-04-01' =
   name: guid(storage.id, worker.id, roleStorageQueueDataContributor)
   scope: storage
   properties: { roleDefinitionId: roleStorageQueueDataContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
-}
-
-resource workerUsesTables 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storage.id, worker.id, roleStorageTableDataContributor)
-  scope: storage
-  properties: { roleDefinitionId: roleStorageTableDataContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
 }
 
 resource workerManagesStorageAccount 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
