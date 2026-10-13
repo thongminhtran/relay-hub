@@ -1,0 +1,65 @@
+name: Diagnose
+
+# Read-only look at the live resources from a machine without `az login` (the Mac): worker state, Key Vault reference
+# resolution, queue depths, role assignments and the last hour of Application Insights telemetry.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rg-relayhub
+
+jobs:
+  diagnose:
+    name: Live status
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Worker state, functions, Key Vault references
+        run: |
+          W=$(az functionapp list -g "$RESOURCE_GROUP" --query "[?contains(name,'worker')].name" -o tsv)
+          echo "worker: $W"
+          az functionapp show -g "$RESOURCE_GROUP" -n "$W" --query "{state:state, host:defaultHostName, principalId:identity.principalId, runtime:siteConfig.linuxFxVersion}" -o json
+          az functionapp function list -g "$RESOURCE_GROUP" -n "$W" --query "[].{name:name, disabled:isDisabled}" -o table
+          SUB=$(az account show --query id -o tsv)
+          echo "--- Key Vault reference status (worker) ---"
+          az rest --method GET --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$W/config/configreferences/appsettings?api-version=2022-03-01" -o json \
+            | jq -r '.value[] | "\(.name): \(.properties.status) \(.properties.details // "")"'
+          API=$(az webapp list -g "$RESOURCE_GROUP" --query "[?contains(name,'api')].name" -o tsv)
+          echo "--- Key Vault reference status (api $API) ---"
+          az rest --method GET --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.Web/sites/$API/config/configreferences/appsettings?api-version=2022-03-01" -o json \
+            | jq -r '.value[] | "\(.name): \(.properties.status) \(.properties.details // "")"'
+
+      - name: Queue depths
+        run: |
+          ST=$(az storage account list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+          KEY=$(az storage account keys list -g "$RESOURCE_GROUP" -n "$ST" --query "[0].value" -o tsv)
+          echo "storage: $ST"
+          for q in incoming deliveries incoming-poison deliveries-poison; do
+            n=$(az storage queue stats --name "$q" --account-name "$ST" --account-key "$KEY" --query approximateMessageCount -o tsv 2>/dev/null || echo "?")
+            echo "$q: $n message(s)"
+          done
+
+      - name: Role assignments on the storage account
+        run: |
+          ST=$(az storage account show -g "$RESOURCE_GROUP" -n "$(az storage account list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)" --query id -o tsv)
+          az role assignment list --scope "$ST" --query "[].{role:roleDefinitionName, principal:principalId, type:principalType}" -o table
+
+      - name: Application Insights (last 60 min)
+        run: |
+          az extension add -n application-insights -y >/dev/null 2>&1 || true
+          APPI=$(az resource list -g "$RESOURCE_GROUP" --resource-type microsoft.insights/components --query "[0].name" -o tsv)
+          echo "app insights: $APPI"
+          echo "--- requests / traces / exceptions ---"
+          az monitor app-insights query --app "$APPI" -g "$RESOURCE_GROUP" --analytics-query "union requests, traces, exceptions, dependencies | where timestamp > ago(60m) | project timestamp, itemType, role=cloud_RoleName, op=operation_Name, text=coalesce(message, outerMessage, name), sev=severityLevel, ok=success, code=resultCode | order by timestamp desc | take 80" -o table
