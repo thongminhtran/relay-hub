@@ -47,7 +47,7 @@ jobs:
           KEY=$(az storage account keys list -g "$RESOURCE_GROUP" -n "$ST" --query "[0].value" -o tsv)
           echo "storage: $ST"
           for q in incoming deliveries incoming-poison deliveries-poison; do
-            n=$(az storage queue stats --name "$q" --account-name "$ST" --account-key "$KEY" --query approximateMessageCount -o tsv 2>/dev/null || echo "?")
+            n=$(az storage queue metadata show --name "$q" --account-name "$ST" --account-key "$KEY" --query approximateMessageCount -o tsv 2>/dev/null || echo "?")
             echo "$q: $n message(s)"
           done
 

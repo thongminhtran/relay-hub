@@ -72,6 +72,6 @@ cd web && npm ci && npm run build
 
 - C# 14 / .NET 10, nullable + implicit usings on, minimal APIs grouped per feature in `src/RelayHub.Api/Endpoints`, Problem Details for errors, `Results.ValidationProblem` for 400s.
 - Entity named `Delivery` ⇒ do not create a namespace called `...Delivery` in Infrastructure (it clashes); the dispatcher lives in `RelayHub.Infrastructure.Dispatch`.
-- Commit messages: imperative summary + short bullet body. CI (`.github/workflows/ci.yml`) must stay green.
+- Commit messages: imperative summary + short bullet body. CI (`.github/workflows/ci.yml`) must stay green. Every push to `main` touching `src/**` or `infra/**` deploys to Azure (`deploy.yml`); `gh run watch` it. `gh workflow run diagnose.yml` prints the live worker / queue / Key Vault / App Insights status when there is no local `az login`.
 - Tim prefers chat replies in Vietnamese (casual); code, comments and docs stay in English.
 - Interview prep: when Tim asks to practise, follow the "Interview prep routine" in `docs/HANDOFF.md` (mock interview in English on the decisions above, follow-up questions, model answers, build-journal stories).
