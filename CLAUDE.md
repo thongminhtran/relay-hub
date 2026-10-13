@@ -36,7 +36,7 @@ cd web && npm ci && npm run build
 ## Local setup (per machine)
 
 1. .NET 10 SDK, Node 24, Docker.
-2. SQL Server in Docker: `docker run -d --name relayhub-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<strong pw>' -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`. On Apple Silicon the image is amd64: enable Rosetta / "Use Rosetta for x86_64 emulation" in Docker Desktop, or use `mcr.microsoft.com/azure-sql-edge` for local runs (Testcontainers tests still use the mssql image).
+2. SQL Server in Docker: `docker run -d --name relayhub-sql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD='<strong pw>' -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`. On Apple Silicon the image is amd64: enable Rosetta / "Use Rosetta for x86_64 emulation" in Docker Desktop, or use Colima (`colima start --vm-type vz --vz-rosetta`) and export `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` plus `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`. On macOS run the API on a port other than 5000 (AirPlay Receiver owns it): `--urls http://localhost:5080`.
 3. Secrets live in user-secrets, never in the repo:
    ```bash
    cd src/RelayHub.Api
