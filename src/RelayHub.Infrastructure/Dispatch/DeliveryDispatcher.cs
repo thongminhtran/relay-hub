@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using RelayHub.Core.Abstractions;
 using RelayHub.Core.Domain;
+using RelayHub.Infrastructure.Connectors;
 using RelayHub.Infrastructure.Data;
 
 namespace RelayHub.Infrastructure.Dispatch;
@@ -11,10 +12,12 @@ namespace RelayHub.Infrastructure.Dispatch;
 /// Owns the delivery rules: which deliveries an event produces, how one attempt is recorded, and the backoff / dead-letter
 /// schedule. Used by the worker (attempts from the queue) and by the API (test messages). Sending inline from the API
 /// was a Week 1 stop-gap; since Week 2 every attempt comes off the <c>deliveries</c> queue.
+/// With <c>mock: true</c> (demo workspaces) every send goes to <see cref="DemoSinkConnector"/> instead of a real connector.
 /// </summary>
 public sealed class DeliveryDispatcher(
     RelayHubDbContext db,
     IEnumerable<IDestinationConnector> connectors,
+    DemoSinkConnector demoSink,
     ILogger<DeliveryDispatcher> log)
 {
     public const int MaxAttempts = 5;
@@ -67,9 +70,10 @@ public sealed class DeliveryDispatcher(
     }
 
     /// <summary>Performs one attempt, records it, and moves the delivery to Delivered / Retrying (with backoff) / DeadLettered.</summary>
-    public async Task<DeliveryResult> AttemptAsync(Delivery delivery, Destination destination, string text, Event evt, string? retryProfile, CancellationToken ct)
+    /// <param name="mock">True for demo workspaces: send through <see cref="DemoSinkConnector"/> whatever the destination type.</param>
+    public async Task<DeliveryResult> AttemptAsync(Delivery delivery, Destination destination, string text, Event evt, string? retryProfile, bool mock = false, CancellationToken ct = default)
     {
-        var result = await SendAsync(destination, text, evt, ct);
+        var result = await SendAsync(destination, text, evt, mock, ct);
 
         delivery.AttemptCount++;
         delivery.Attempts.Add(new DeliveryAttempt
@@ -108,7 +112,8 @@ public sealed class DeliveryDispatcher(
     }
 
     /// <summary>"Send test message" for a destination. Nothing is stored.</summary>
-    public async Task<DeliveryResult> SendTestAsync(Destination destination, CancellationToken ct)
+    /// <param name="mock">True for demo workspaces: the test goes to <see cref="DemoSinkConnector"/>, never to the real channel.</param>
+    public async Task<DeliveryResult> SendTestAsync(Destination destination, bool mock = false, CancellationToken ct = default)
     {
         var evt = new Event
         {
@@ -116,19 +121,21 @@ public sealed class DeliveryDispatcher(
             SenderName = "RelayHub", Text = "Test message", CorrelationId = Guid.NewGuid().ToString("N"),
         };
         var text = $"✅ RelayHub test message to \"{destination.Name}\" at {DateTimeOffset.UtcNow:u}";
-        return (await SendAsync(destination, text, evt, ct)).Result;
+        return (await SendAsync(destination, text, evt, mock, ct)).Result;
     }
 
-    private async Task<(DeliveryResult Result, int DurationMs)> SendAsync(Destination destination, string text, Event evt, CancellationToken ct)
+    private async Task<(DeliveryResult Result, int DurationMs)> SendAsync(Destination destination, string text, Event evt, bool mock, CancellationToken ct)
     {
-        var connector = connectors.FirstOrDefault(c => c.Type == destination.Type);
+        var connector = mock ? null : connectors.FirstOrDefault(c => c.Type == destination.Type);
         var sw = Stopwatch.StartNew();
         DeliveryResult result;
         try
         {
-            result = connector is null
-                ? new DeliveryResult(false, null, $"No connector registered for {destination.Type}", Retryable: false)
-                : await connector.SendAsync(destination, text, evt, ct);
+            result = mock
+                ? await demoSink.SendAsync(destination, text, evt, ct)
+                : connector is null
+                    ? new DeliveryResult(false, null, $"No connector registered for {destination.Type}", Retryable: false)
+                    : await connector.SendAsync(destination, text, evt, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
         {

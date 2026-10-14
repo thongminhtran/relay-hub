@@ -32,6 +32,8 @@ public static class DependencyInjection
 
         services.AddHttpClient<DiscordConnector>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IDestinationConnector>(sp => sp.GetRequiredService<DiscordConnector>());
+        // Demo workspaces deliver here instead of a real connector (not an IDestinationConnector on purpose: never picked by type).
+        services.AddSingleton<DemoSinkConnector>();
         // Live dashboard updates are optional; the SignalR implementation replaces this when configured (TryAdd keeps the override).
         services.TryAddSingleton<IRealtimeNotifier, NullRealtimeNotifier>();
         services.AddScoped<DeliveryDispatcher>();
