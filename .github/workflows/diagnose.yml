@@ -1,7 +1,8 @@
 name: Diagnose
 
 # Read-only look at the live resources from a machine without `az login` (the Mac): worker state, Key Vault reference
-# resolution, queue depths, role assignments and the last hour of Application Insights telemetry.
+# resolution, queue depths, role assignments, SignalR / Static Web App status, app setting names (never values) and the
+# last hour of Application Insights telemetry.
 on:
   workflow_dispatch:
 
@@ -55,6 +56,30 @@ jobs:
         run: |
           ST=$(az storage account show -g "$RESOURCE_GROUP" -n "$(az storage account list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)" --query id -o tsv)
           az role assignment list --scope "$ST" --query "[].{role:roleDefinitionName, principal:principalId, type:principalType}" -o table
+
+      - name: SignalR, Static Web App, role assignments on SignalR
+        run: |
+          S=$(az signalr list -g "$RESOURCE_GROUP" --query "[0].name" -o tsv)
+          if [ -z "$S" ]; then echo "no SignalR resource yet (Week 3 Bicep not deployed)"; else
+            echo "signalr: $S"
+            az signalr show -g "$RESOURCE_GROUP" -n "$S" --query "{state:provisioningState, sku:sku.name, host:hostName, serviceMode:features[?flag=='ServiceMode'].value | [0], cors:cors.allowedOrigins, localAuthDisabled:disableLocalAuth}" -o json
+            az role assignment list --scope "$(az signalr show -g "$RESOURCE_GROUP" -n "$S" --query id -o tsv)" --query "[].{role:roleDefinitionName, principal:principalId, type:principalType}" -o table
+          fi
+          echo "--- Static Web App ---"
+          az staticwebapp list -g "$RESOURCE_GROUP" --query "[].{name:name, host:defaultHostname, sku:sku.name, location:location}" -o table
+          for h in $(az staticwebapp list -g "$RESOURCE_GROUP" --query "[].defaultHostname" -o tsv); do
+            echo "https://$h -> HTTP $(curl -s -o /dev/null -w '%{http_code}' "https://$h")"
+          done
+
+      # Names only: a missing setting (e.g. an optional secret that was never set) is visible without exposing any value.
+      - name: App setting names (API + worker)
+        run: |
+          API=$(az webapp list -g "$RESOURCE_GROUP" --query "[?contains(name,'api')].name" -o tsv)
+          W=$(az functionapp list -g "$RESOURCE_GROUP" --query "[?contains(name,'worker')].name" -o tsv)
+          echo "--- $API ---"
+          az webapp config appsettings list -g "$RESOURCE_GROUP" -n "$API" --query "[].name" -o tsv | sort
+          echo "--- $W ---"
+          az functionapp config appsettings list -g "$RESOURCE_GROUP" -n "$W" --query "[].name" -o tsv | sort
 
       - name: Application Insights (last 60 min)
         run: |

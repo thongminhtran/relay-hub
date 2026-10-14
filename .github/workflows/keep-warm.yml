@@ -1,0 +1,47 @@
+name: Keep warm
+
+# Pings the API every 10 minutes during Calgary waking hours so the F1 App Service is not cold for the first visitor
+# (F1 has no Always On; an idle app is unloaded after ~20 minutes and the next request pays a 10-30 s start).
+#
+# Only /health, NEVER /health/ready: /health touches no database and the serverless Azure SQL free offer must be allowed
+# to auto-pause (plan decision "never poll Azure SQL").
+#
+# GitHub cron is UTC and has no time-zone support, so the 07:00-23:00 America/Edmonton window is approximated with two
+# UTC ranges that together cover both offsets:  MDT (UTC-6): 07:00-23:00 local = 13:00-05:00 UTC,
+#                                              MST (UTC-7): 07:00-23:00 local = 14:00-06:00 UTC.
+# The union 13:00-05:50 UTC runs year-round: about 07:00-23:50 local in summer and 06:00-22:50 local in winter.
+# Scheduled workflows run on the default branch only, may start a few minutes late and are paused by GitHub after
+# 60 days without a push (re-enable under Actions). On a private repo each run costs about one billable minute.
+on:
+  schedule:
+    - cron: '*/10 13-23 * * *'
+    - cron: '*/10 0-5 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+# Runs must not pile up when the API is slow to answer: the newest one wins.
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping /health
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      # Repo variables (gh variable set API_URL / DASHBOARD_URL); the default is the live API from docs/HANDOFF.md.
+      API_URL: ${{ vars.API_URL || 'https://app-relayhub-prod-api-s4w2qp.azurewebsites.net' }}
+      DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+    steps:
+      - name: API /health
+        run: |
+          start=$(date +%s%N)
+          curl -fsS --max-time 90 --retry 2 --retry-delay 10 "${API_URL%/}/health"
+          echo
+          echo "answered in $(( ($(date +%s%N) - start) / 1000000 )) ms"
+
+      - name: Dashboard
+        if: env.DASHBOARD_URL != ''
+        run: curl -fsS --max-time 30 -o /dev/null -w 'dashboard HTTP %{http_code} in %{time_total}s\n' "$DASHBOARD_URL"

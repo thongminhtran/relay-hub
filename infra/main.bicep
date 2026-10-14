@@ -1,5 +1,7 @@
 // RelayHub infrastructure — resource-group scope. All free tiers; see docs/plan-src/plan.md section 10.
 // Week 2 adds the Functions Flex Consumption worker, the poison queues and the operator-alert secret.
+// Weeks 3/4 add Azure SignalR Service (serverless, Free_F1), the Static Web App for the dashboard and the
+// auth / channel secrets (JWT signing key, owner login, Turnstile, Meta, Telegram, inbound email, Resend).
 // Deploy: az deployment group create -g rg-relayhub -f infra/main.bicep -p infra/main.bicepparam
 targetScope = 'resourceGroup'
 
@@ -37,6 +39,57 @@ param functionsLocation string = 'canadacentral'
 @secure()
 @description('Optional Discord incoming-webhook URL for operator alerts (dead-letters, poison messages). Empty = alerts only go to the logs.')
 param opsDiscordWebhookUrl string = ''
+
+// ---- Week 3: dashboard auth (required) ----
+@secure()
+@minLength(32)
+@description('HS256 key that signs the dashboard JWTs (RelayHub:JwtSigningKey). At least 32 characters; rotating it logs everyone out.')
+param jwtSigningKey string
+
+@secure()
+@minLength(3)
+@description('Login of the owner user the seeder creates (RelayHub:OwnerEmail).')
+param ownerEmail string
+
+@secure()
+@minLength(8)
+@description('Password of the owner user (RelayHub:OwnerPassword). The seeder re-hashes it on startup, so a rotated value works after a redeploy.')
+param ownerPassword string
+
+// ---- Weeks 3/4: optional feature secrets. Empty = the feature answers 503 "not configured" and logs one warning at startup. ----
+@secure()
+@description('Cloudflare Turnstile secret for the demo login (RelayHub:Turnstile:Secret). Empty = any/no token is accepted.')
+param turnstileSecret string = ''
+
+@secure()
+@description('Meta app secret that signs Facebook/Instagram webhooks (RelayHub:Meta:AppSecret).')
+param metaAppSecret string = ''
+
+@secure()
+@description('Verify token Meta sends on webhook subscription (RelayHub:Meta:VerifyToken).')
+param metaVerifyToken string = ''
+
+@secure()
+@description('Secret the Telegram bot webhook sends in X-Telegram-Bot-Api-Secret-Token (RelayHub:Telegram:WebhookSecret).')
+param telegramWebhookSecret string = ''
+
+@secure()
+@description('HMAC secret shared with the Cloudflare Email Worker that posts inbound mail (RelayHub:Email:InboundSecret).')
+param emailInboundSecret string = ''
+
+@secure()
+@description('Resend API key for outbound email (RelayHub:Resend:ApiKey). Used by the API (replies) and the worker (email destinations).')
+param resendApiKey string = ''
+
+@description('Default sender for Resend (RelayHub:Resend:From), e.g. "RelayHub <inbox@example.com>". Not a secret: a plain app setting.')
+param resendFrom string = ''
+
+// ---- Weeks 3/4: realtime + dashboard hosting ----
+@description('Region for Azure SignalR Service. Defaults to the API region here; main.bicepparam puts it in canadacentral next to SQL and the worker (env SIGNALR_LOCATION).')
+param signalRLocation string = location
+
+@description('Region for the Static Web App resource (its content is served from a global edge). Static Web Apps exists only in a few regions — westus2, centralus, eastus2, westeurope, eastasia — not in Canada; the Azure CLI default is centralus.')
+param staticWebAppLocation string = 'eastus2'
 
 var suffix = toLower('${appName}-${env}')
 // Key Vault, storage and SQL server names are globally unique across all of Azure: add a stable per-subscription suffix.
@@ -107,6 +160,83 @@ resource secretOpsWebhook 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!
 var opsWebhookSettings = empty(opsDiscordWebhookUrl) ? [] : [
   { name: 'RelayHub__OpsDiscordWebhookUrl', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=RelayHub--OpsDiscordWebhookUrl)' }
 ]
+
+// ---- Week 3: dashboard auth secrets (required; the API's seeder creates the owner user from the two owner settings) ----
+resource secretJwtSigningKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'RelayHub--JwtSigningKey'
+  properties: { value: jwtSigningKey }
+}
+
+resource secretOwnerEmail 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'RelayHub--OwnerEmail'
+  properties: { value: ownerEmail }
+}
+
+resource secretOwnerPassword 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'RelayHub--OwnerPassword'
+  properties: { value: ownerPassword }
+}
+
+// ---- Weeks 3/4: optional feature secrets, deployed only when a value was supplied ----
+resource secretTurnstile 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(turnstileSecret)) {
+  parent: keyVault
+  name: 'RelayHub--Turnstile--Secret'
+  properties: { value: turnstileSecret }
+}
+
+resource secretMetaAppSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(metaAppSecret)) {
+  parent: keyVault
+  name: 'RelayHub--Meta--AppSecret'
+  properties: { value: metaAppSecret }
+}
+
+resource secretMetaVerifyToken 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(metaVerifyToken)) {
+  parent: keyVault
+  name: 'RelayHub--Meta--VerifyToken'
+  properties: { value: metaVerifyToken }
+}
+
+resource secretTelegramWebhook 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(telegramWebhookSecret)) {
+  parent: keyVault
+  name: 'RelayHub--Telegram--WebhookSecret'
+  properties: { value: telegramWebhookSecret }
+}
+
+resource secretEmailInbound 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(emailInboundSecret)) {
+  parent: keyVault
+  name: 'RelayHub--Email--InboundSecret'
+  properties: { value: emailInboundSecret }
+}
+
+resource secretResendApiKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(resendApiKey)) {
+  parent: keyVault
+  name: 'RelayHub--Resend--ApiKey'
+  properties: { value: resendApiKey }
+}
+
+// Same rule as opsWebhookSettings, for every optional secret: the Key Vault reference is only emitted when the secret is deployed.
+// `set` is a boolean, so no secret value ever lands in a variable. (Key Vault secret `A--B` ↔ app setting `A__B` ↔ configuration `A:B`.)
+var optionalSecretSettings = [
+  { name: 'RelayHub__Turnstile__Secret', secret: 'RelayHub--Turnstile--Secret', set: !empty(turnstileSecret), api: true, worker: false }
+  { name: 'RelayHub__Meta__AppSecret', secret: 'RelayHub--Meta--AppSecret', set: !empty(metaAppSecret), api: true, worker: false }
+  { name: 'RelayHub__Meta__VerifyToken', secret: 'RelayHub--Meta--VerifyToken', set: !empty(metaVerifyToken), api: true, worker: false }
+  { name: 'RelayHub__Telegram__WebhookSecret', secret: 'RelayHub--Telegram--WebhookSecret', set: !empty(telegramWebhookSecret), api: true, worker: false }
+  { name: 'RelayHub__Email__InboundSecret', secret: 'RelayHub--Email--InboundSecret', set: !empty(emailInboundSecret), api: true, worker: false }
+  { name: 'RelayHub__Resend__ApiKey', secret: 'RelayHub--Resend--ApiKey', set: !empty(resendApiKey), api: true, worker: true }
+]
+var apiOptionalSecretSettings = map(filter(optionalSecretSettings, s => s.set && s.api), s => {
+  name: s.name
+  value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${s.secret})'
+})
+var workerOptionalSecretSettings = map(filter(optionalSecretSettings, s => s.set && s.worker), s => {
+  name: s.name
+  value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${s.secret})'
+})
+// Not a secret, but equally optional: an empty RelayHub:Resend:From would override the configured default with "".
+var resendFromSettings = empty(resendFrom) ? [] : [{ name: 'RelayHub__Resend__From', value: resendFrom }]
 
 // ---------- Data: Azure SQL free offer (serverless, auto-pause until next month when the free limit is used up) ----------
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
@@ -195,6 +325,42 @@ resource workerPackageContainer 'Microsoft.Storage/storageAccounts/blobServices/
   name: 'app-package-worker'
 }
 
+// ---------- Dashboard hosting: Static Web App, Free tier (100 GB bandwidth/month, 0.25 GB app size, free TLS) ----------
+// No repository binding: deploy.yml builds web/ itself and uploads web/dist with the deployment token it reads from this
+// resource (az staticwebapp secrets list), so no extra GitHub secret is needed. The SPA fallback lives in web/public/staticwebapp.config.json.
+resource swa 'Microsoft.Web/staticSites@2024-04-01' = {
+  name: 'stapp-${suffix}'
+  location: staticWebAppLocation
+  tags: tags
+  sku: { name: 'Free', tier: 'Free' }
+  properties: {
+    provider: 'Custom' // content comes from our own pipeline, not from a linked GitHub/ADO repo
+    allowConfigFileUpdates: true
+    stagingEnvironmentPolicy: 'Enabled'
+  }
+}
+
+// ---------- Realtime: Azure SignalR Service, Free_F1 (1 unit: 20 concurrent connections, 20k messages/day), Serverless mode ----------
+// Serverless = no hub server: the API answers /api/v1/realtime/negotiate and both apps push through the Management SDK (REST),
+// authenticated with their managed identities (SignalR__Endpoint only, no connection string). Local auth (access keys) stays on
+// so a developer can still use SignalR:ConnectionString locally; nothing in Azure uses the keys.
+resource signalr 'Microsoft.SignalRService/signalR@2024-03-01' = {
+  name: 'sigr-${suffix}-${unique}' // the hostname <name>.service.signalr.net is global, like the Key Vault / storage names
+  location: signalRLocation
+  tags: tags
+  kind: 'SignalR'
+  sku: { name: 'Free_F1', tier: 'Free', capacity: 1 }
+  properties: {
+    features: [
+      { flag: 'ServiceMode', value: 'Serverless' }
+    ]
+    // Browser clients talk to the service directly after negotiate: only the dashboard origin may do so.
+    cors: { allowedOrigins: ['https://${swa.properties.defaultHostname}'] }
+    publicNetworkAccess: 'Enabled'
+    tls: { clientCertEnabled: false }
+  }
+}
+
 // ---------- Compute: App Service F1 (Linux) for the API ----------
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: 'asp-${suffix}'
@@ -226,11 +392,26 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
         { name: 'RelayHub__ApiKeyMasterKey', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretMasterKey.name})' }
         { name: 'RelayHub__MigrateOnStartup', value: 'false' }
-        { name: 'RelayHub__SeedOnStartup', value: 'true' }
+        { name: 'RelayHub__SeedOnStartup', value: 'true' } // the seeder also creates/updates the owner user from the two owner secrets
         { name: 'Storage__QueueServiceUri', value: 'https://${storage.name}.queue.${environment().suffixes.storage}' }
-      ], opsWebhookSettings)
+        // Week 3: dashboard auth + CORS + realtime
+        { name: 'RelayHub__JwtSigningKey', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretJwtSigningKey.name})' }
+        { name: 'RelayHub__OwnerEmail', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretOwnerEmail.name})' }
+        { name: 'RelayHub__OwnerPassword', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretOwnerPassword.name})' }
+        { name: 'RelayHub__DashboardOrigin', value: 'https://${swa.properties.defaultHostname}' }
+        { name: 'SignalR__Endpoint', value: 'https://${signalr.properties.hostName}' }
+      ], opsWebhookSettings, apiOptionalSecretSettings, resendFromSettings)
     }
   }
+  // The optional secrets are only referenced by name inside the settings: make sure they exist before the app first resolves them.
+  dependsOn: [
+    secretTurnstile
+    secretMetaAppSecret
+    secretMetaVerifyToken
+    secretTelegramWebhook
+    secretEmailInbound
+    secretResendApiKey
+  ]
 }
 
 // ---------- Compute: Functions Flex Consumption for the worker (free grant: 250k executions + 100k GB-s / month) ----------
@@ -274,9 +455,12 @@ resource worker 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
         { name: 'Storage__QueueServiceUri', value: 'https://${storage.name}.queue.${environment().suffixes.storage}' }
-      ], opsWebhookSettings)
+        // Week 3: the worker pushes eventCreated / deliveryUpdated to the dashboard through the same SignalR resource.
+        { name: 'SignalR__Endpoint', value: 'https://${signalr.properties.hostName}' }
+      ], opsWebhookSettings, workerOptionalSecretSettings, resendFromSettings)
     }
   }
+  dependsOn: [secretResendApiKey]
 }
 
 // ---------- RBAC: the API's managed identity reads secrets and uses the queues ----------
@@ -331,6 +515,28 @@ resource workerManagesStorageAccount 'Microsoft.Authorization/roleAssignments@20
   properties: { roleDefinitionId: roleStorageAccountContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
 }
 
+// ---------- RBAC: both identities push to SignalR with DefaultAzureCredential (Management SDK, serverless mode) ----------
+// Role id copied from https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/web-and-mobile#signalr-service-owner
+// (never typed from memory — see the build journal). Which role: https://learn.microsoft.com/azure/azure-signalr/signalr-howto-authorize-managed-identity
+// says "SignalR Service Owner" (data action Microsoft.SignalRService/SignalR/*) is the one for "a negotiation server with an
+// Azure SignalR Service resource running in Serverless mode. It requires both REST API permissions and authentication API
+// permissions". The narrower "SignalR REST API Owner" (fd53cd77-2268-407a-8f46-7e7863d0f521) lacks SignalR/auth/accessKey/action,
+// which the SDK calls to obtain the key it signs REST and client tokens with, and "SignalR App Server"
+// (420fcaa2-552c-430f-98ca-3264be4806c7) lacks hub/group/user, so neither alone is enough for negotiate + send.
+var roleSignalRServiceOwner = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7e4f1700-ea5a-4f59-8f37-079cfe29dce3')
+
+resource apiUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(signalr.id, api.id, roleSignalRServiceOwner)
+  scope: signalr
+  properties: { roleDefinitionId: roleSignalRServiceOwner, principalId: api.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource workerUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(signalr.id, worker.id, roleSignalRServiceOwner)
+  scope: signalr
+  properties: { roleDefinitionId: roleSignalRServiceOwner, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
+}
+
 resource deployerManagesSecrets 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerObjectId)) {
   name: guid(keyVault.id, deployerObjectId, roleKeyVaultSecretsOfficer)
   scope: keyVault
@@ -349,3 +555,8 @@ output sqlDatabaseName string = sqlDb.name
 output keyVaultName string = keyVault.name
 output storageAccountName string = storage.name
 output appInsightsName string = appInsights.name
+output signalRName string = signalr.name
+output signalREndpoint string = 'https://${signalr.properties.hostName}'
+output staticWebAppName string = swa.name
+output dashboardHostname string = swa.properties.defaultHostname
+output dashboardUrl string = 'https://${swa.properties.defaultHostname}'

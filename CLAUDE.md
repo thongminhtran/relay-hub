@@ -18,8 +18,11 @@ src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, conn
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
 web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
-infra/                       Bicep: App Service F1 (API), Functions Flex Consumption (worker), SQL free offer, Storage queues, Key Vault, App Insights
+infra/                       Bicep: App Service F1 (API), Functions Flex Consumption (worker), SQL free offer, Storage queues, Key Vault, App Insights,
+                             Azure SignalR Service (Free_F1, serverless), Static Web App (dashboard); README has the GitHub-secret table
 scripts/smoke.sh             curl walk-through of the flow against a running API (+ Azurite + worker for the stored event)
+.github/workflows/           ci.yml (fast .NET + Docker/Testcontainers job + web lint/test/build), deploy.yml (infra → worker → API → dashboard upload),
+                             keep-warm.yml (GET /health every 10 min, Calgary daytime; never /health/ready), diagnose.yml (manual live status)
 ```
 
 ## Commands
@@ -72,6 +75,6 @@ cd web && npm ci && npm run build
 
 - C# 14 / .NET 10, nullable + implicit usings on, minimal APIs grouped per feature in `src/RelayHub.Api/Endpoints`, Problem Details for errors, `Results.ValidationProblem` for 400s.
 - Entity named `Delivery` ⇒ do not create a namespace called `...Delivery` in Infrastructure (it clashes); the dispatcher lives in `RelayHub.Infrastructure.Dispatch`.
-- Commit messages: imperative summary + short bullet body. CI (`.github/workflows/ci.yml`) must stay green. Every push to `main` touching `src/**` or `infra/**` deploys to Azure (`deploy.yml`); `gh run watch` it. `gh workflow run diagnose.yml` prints the live worker / queue / Key Vault / App Insights status when there is no local `az login`.
+- Commit messages: imperative summary + short bullet body. CI (`.github/workflows/ci.yml`) must stay green. Every push to `main` touching `src/**`, `web/**` or `infra/**` deploys to Azure (`deploy.yml`); `gh run watch` it. `gh workflow run diagnose.yml` prints the live worker / queue / Key Vault / SignalR / Static Web App / App Insights status when there is no local `az login`. `infra/main.bicepparam` requires the GitHub secrets `JWT_SIGNING_KEY`, `OWNER_EMAIL`, `OWNER_PASSWORD` (table in `infra/README.md`).
 - Tim prefers chat replies in Vietnamese (casual); code, comments and docs stay in English.
 - Interview prep: when Tim asks to practise, follow the "Interview prep routine" in `docs/HANDOFF.md` (mock interview in English on the decisions above, follow-up questions, model answers, build-journal stories).
