@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RelayHub.Api.Auth;
 using RelayHub.Infrastructure;
 using RelayHub.Infrastructure.Data;
 using static RelayHub.Api.Endpoints.EndpointHelpers;
@@ -14,14 +15,14 @@ public static class RouteEndpoints
 
     public static IEndpointRouteBuilder MapRouteEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/routes").WithTags("Configuration");
+        var group = app.MapGroup("/api/v1/routes").WithTags("Configuration").RequireAuthorization(AuthPolicies.Member);
 
         group.MapGet("/", ListAsync).WithName("ListRoutes");
-        group.MapPost("/", CreateAsync).WithName("CreateRoute")
+        group.MapPost("/", CreateAsync).WithName("CreateRoute").RequireAuthorization(AuthPolicies.Owner)
              .WithSummary("Link a source to a destination. Template tokens: {{name}} {{email}} {{text}} {{channel}} {{source}} {{receivedAt}}");
         group.MapGet("/{id:int}", GetAsync).WithName("GetRoute");
-        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateRoute");
-        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteRoute");
+        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateRoute").RequireAuthorization(AuthPolicies.Owner);
+        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteRoute").RequireAuthorization(AuthPolicies.Owner);
 
         return app;
     }

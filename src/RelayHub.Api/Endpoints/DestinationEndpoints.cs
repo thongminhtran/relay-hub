@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using RelayHub.Api.Auth;
 using RelayHub.Core.Domain;
 using RelayHub.Infrastructure;
 using RelayHub.Infrastructure.Data;
@@ -16,15 +18,15 @@ public static class DestinationEndpoints
 
     public static IEndpointRouteBuilder MapDestinationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/destinations").WithTags("Configuration");
+        var group = app.MapGroup("/api/v1/destinations").WithTags("Configuration").RequireAuthorization(AuthPolicies.Member);
 
         group.MapGet("/", ListAsync).WithName("ListDestinations");
-        group.MapPost("/", CreateAsync).WithName("CreateDestination")
+        group.MapPost("/", CreateAsync).WithName("CreateDestination").RequireAuthorization(AuthPolicies.Owner)
              .WithSummary("Create a destination. Discord config: { \"webhookUrl\": \"https://discord.com/api/webhooks/...\" }");
         group.MapGet("/{id:int}", GetAsync).WithName("GetDestination");
-        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateDestination");
-        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteDestination");
-        group.MapPost("/{id:int}/test", TestAsync).WithName("TestDestination").WithSummary("Send a test message to this destination.");
+        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateDestination").RequireAuthorization(AuthPolicies.Owner);
+        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteDestination").RequireAuthorization(AuthPolicies.Owner);
+        group.MapPost("/{id:int}/test", TestAsync).WithName("TestDestination").WithSummary("Send a test message to this destination (mocked in the Demo workspace: nothing leaves the system).");
 
         return app;
     }
@@ -85,13 +87,16 @@ public static class DestinationEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> TestAsync(int id, RelayHubDbContext db, DeliveryDispatcher dispatcher, CancellationToken ct)
+    private static async Task<IResult> TestAsync(int id, ClaimsPrincipal user, RelayHubDbContext db, DeliveryDispatcher dispatcher, CancellationToken ct)
     {
         var destination = await db.Destinations.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, ct);
         if (destination is null) return NotFound("Destination");
 
+        // Demo workspace: the visitor sees a success, the webhook behind the destination is never called.
+        if (user.IsDemo()) return Results.Ok(new { Succeeded = true, HttpStatus = (int?)200, Error = (string?)null, Mocked = true });
+
         var result = await dispatcher.SendTestAsync(destination, ct);
-        return Results.Ok(new { result.Succeeded, result.HttpStatus, result.Error });
+        return Results.Ok(new { result.Succeeded, result.HttpStatus, result.Error, Mocked = false });
     }
 
     /// <summary>Per-connector config rules. Returns normalized JSON to store, or an error message.</summary>

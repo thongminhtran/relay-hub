@@ -4,13 +4,28 @@ using RelayHub.Infrastructure;
 
 namespace RelayHub.Api.Endpoints;
 
+/// <summary>Problem Details <c>type</c> URIs the dashboard switches on.</summary>
+public static class ProblemTypes
+{
+    private const string Base = "https://relayhub.dev/problems/";
+    public const string DemoUnavailable = Base + "demo-unavailable";
+    public const string ReplyWindowClosed = Base + "reply-window-closed";
+    public const string ReplyFailed = Base + "reply-failed";
+    public const string ReplyUnsupported = Base + "reply-unsupported";
+    public const string RealtimeUnavailable = Base + "realtime-unavailable";
+}
+
 internal static partial class EndpointHelpers
 {
     [GeneratedRegex("^[a-z0-9][a-z0-9-]{1,48}$")]
     public static partial Regex SlugPattern();
 
-    /// <summary>Workspace for create operations. Falls back to the Studio workspace until JWT auth lands.</summary>
-    public static int WorkspaceIdOrDefault(this AmbientWorkspace ambient) => ambient.WorkspaceId ?? 1;
+    /// <summary>
+    /// Workspace for create operations. Comes from the token's <c>ws</c> claim; every endpoint that calls this sits behind
+    /// RequireAuthorization, so a missing workspace is a wiring bug, never a reason to fall back to another tenant.
+    /// </summary>
+    public static int WorkspaceIdOrDefault(this AmbientWorkspace ambient)
+        => ambient.WorkspaceId ?? throw new InvalidOperationException("No workspace on this request: the endpoint must require authorization.");
 
     public static IResult ValidationProblem(string field, string message)
         => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });

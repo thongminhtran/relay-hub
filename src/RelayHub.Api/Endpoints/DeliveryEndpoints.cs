@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using RelayHub.Api.Auth;
+using RelayHub.Core.Abstractions;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Messaging;
 using RelayHub.Infrastructure.Data;
@@ -11,7 +13,7 @@ public static class DeliveryEndpoints
 {
     public static IEndpointRouteBuilder MapDeliveryEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/deliveries").WithTags("Inbox");
+        var group = app.MapGroup("/api/v1/deliveries").WithTags("Inbox").RequireAuthorization(AuthPolicies.Member);
 
         group.MapGet("/{id:long}", GetAsync).WithName("GetDelivery").WithSummary("One delivery with its attempts.");
         group.MapPost("/{id:long}/replay", ReplayAsync).WithName("ReplayDelivery")
@@ -29,7 +31,7 @@ public static class DeliveryEndpoints
         return delivery is null ? NotFound("Delivery") : Results.Ok(ToDto(delivery));
     }
 
-    private static async Task<IResult> ReplayAsync(long id, RelayHubDbContext db, IRelayQueues queues, CancellationToken ct)
+    private static async Task<IResult> ReplayAsync(long id, RelayHubDbContext db, IRelayQueues queues, IRealtimeNotifier realtime, CancellationToken ct)
     {
         var delivery = await ScopedDeliveries(db).Include(d => d.Attempts).SingleOrDefaultAsync(d => d.Id == id, ct);
         if (delivery is null) return NotFound("Delivery");
@@ -52,6 +54,7 @@ public static class DeliveryEndpoints
         await queues.EnqueueDeliveryAsync(
             new DeliveryMessage(delivery.Id, evt.WorkspaceId, evt.CorrelationId, Activity.Current?.Id, AfterAttempt: delivery.AttemptCount, DeliveryReasons.Replay),
             visibilityDelay: null, ct);
+        await realtime.DeliveryUpdatedAsync(delivery, evt.WorkspaceId, ct);
 
         return Results.Accepted(value: ToDto(delivery));
     }
