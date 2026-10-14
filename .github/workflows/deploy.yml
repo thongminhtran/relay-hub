@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'src/**'
+      - 'web/**'
       - 'infra/**'
       - '.github/workflows/deploy.yml'
 
@@ -48,6 +49,18 @@ jobs:
           SQL_ADMIN_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
           API_KEY_MASTER_KEY: ${{ secrets.API_KEY_MASTER_KEY }}
           OPS_DISCORD_WEBHOOK_URL: ${{ secrets.OPS_DISCORD_WEBHOOK_URL }}
+          # Week 3 — required by infra/main.bicepparam (the Bicep compile fails with "environment variable ... does not exist" otherwise)
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          OWNER_PASSWORD: ${{ secrets.OWNER_PASSWORD }}
+          # Weeks 3/4 — optional; an unset GitHub secret arrives as "" and the Bicep then skips the secret + app setting
+          TURNSTILE_SECRET: ${{ secrets.TURNSTILE_SECRET }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_VERIFY_TOKEN: ${{ secrets.META_VERIFY_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          EMAIL_INBOUND_SECRET: ${{ secrets.EMAIL_INBOUND_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM: ${{ vars.RESEND_FROM }}   # a sender address is not a secret: repo variable
         run: |
           out=$(az deployment group create -g "$RESOURCE_GROUP" -f infra/main.bicep -p infra/main.bicepparam --query properties.outputs -o json)
           echo "apiName=$(echo "$out" | jq -r .apiName.value)"           >> "$GITHUB_OUTPUT"
@@ -56,6 +69,10 @@ jobs:
           echo "sqlFqdn=$(echo "$out" | jq -r .sqlServerFqdn.value)"     >> "$GITHUB_OUTPUT"
           echo "sqlDb=$(echo "$out" | jq -r .sqlDatabaseName.value)"     >> "$GITHUB_OUTPUT"
           echo "sqlServer=$(echo "$out" | jq -r .sqlServerFqdn.value | cut -d. -f1)" >> "$GITHUB_OUTPUT"
+          echo "signalRName=$(echo "$out" | jq -r .signalRName.value)"   >> "$GITHUB_OUTPUT"
+          echo "swaName=$(echo "$out" | jq -r .staticWebAppName.value)"  >> "$GITHUB_OUTPUT"
+          echo "dashboardHostname=$(echo "$out" | jq -r .dashboardHostname.value)" >> "$GITHUB_OUTPUT"
+          echo "dashboardUrl=$(echo "$out" | jq -r .dashboardUrl.value)" >> "$GITHUB_OUTPUT"
 
       - name: Restore, build, publish API + worker
         run: |
@@ -113,3 +130,59 @@ jobs:
             echo "waiting for the worker to sync its triggers ($names)"; sleep 10
           done
           echo "worker functions did not appear"; exit 1
+
+      # ---- Dashboard (Week 3): build web/ here, upload the static files to the Static Web App with its deployment token ----
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build dashboard
+        working-directory: web
+        env:
+          VITE_API_BASE_URL: ${{ steps.infra.outputs.apiUrl }}   # baked into the bundle at build time (Vite)
+        run: |
+          npm ci
+          npm run build
+          test -f dist/index.html
+          test -f dist/staticwebapp.config.json || echo "::warning::web/public/staticwebapp.config.json is missing: deep links (/app/inbox) will 404 on Static Web Apps"
+
+      # The token is read from the resource at deploy time, so there is no AZURE_STATIC_WEB_APPS_API_TOKEN secret to keep in sync.
+      - name: Static Web App deployment token
+        id: swa
+        run: |
+          token=$(az staticwebapp secrets list -n "${{ steps.infra.outputs.swaName }}" -g "$RESOURCE_GROUP" --query properties.apiKey -o tsv)
+          test -n "$token"
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy dashboard to Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ steps.swa.outputs.token }}
+          action: upload
+          app_location: web/dist
+          output_location: ''
+          skip_app_build: true
+          skip_api_build: true
+
+      - name: Smoke check dashboard + demo login
+        run: |
+          url="${{ steps.infra.outputs.dashboardUrl }}"
+          code=000
+          for i in $(seq 1 12); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' "$url" || true)
+            if [ "$code" = "200" ]; then echo "dashboard is up: $url"; break; fi
+            echo "dashboard answered $code; waiting for the upload to propagate"; sleep 10
+          done
+          [ "$code" = "200" ] || { echo "dashboard did not answer 200 ($code)"; exit 1; }
+          # 200 = a demo workspace exists and the demo login works; 503 = no demo workspace yet (Week 5). Anything else is
+          # only a warning: the API code for this endpoint may land in a later merge than this workflow.
+          demo=$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "${{ steps.infra.outputs.apiUrl }}/api/v1/auth/demo" || true)
+          echo "POST /api/v1/auth/demo -> HTTP $demo"
+          case "$demo" in
+            200) echo "demo login works" ;;
+            503) echo "demo workspace not available yet (expected until Week 5)" ;;
+            *)   echo "::warning::POST /api/v1/auth/demo answered $demo (expected 200 or 503)" ;;
+          esac

@@ -7,7 +7,7 @@ on:
 
 jobs:
   dotnet:
-    name: .NET build & test
+    name: .NET build & test (fast, no Docker)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +18,23 @@ jobs:
       - run: dotnet build --no-restore --configuration Release
       - run: dotnet test --no-build --configuration Release --filter "Category!=Docker"
 
+  # The Testcontainers flow (real SQL Server, the worker's processors end to end). Separate job so the fast one keeps
+  # reporting in ~2 minutes; ubuntu-latest ships Docker, so Testcontainers needs no setup. No category filter: runs everything.
+  dotnet-docker:
+    name: .NET tests incl. Docker (Testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet test RelayHub.slnx --no-build --configuration Release
+
   web:
-    name: Dashboard build
+    name: Dashboard lint, test & build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -32,4 +47,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      # --if-present: the lint / test scripts arrive with the dashboard; CI stays green before and after.
+      - run: npm run lint --if-present
+      - run: npm test --if-present -- --run
       - run: npm run build
