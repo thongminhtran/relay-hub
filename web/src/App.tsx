@@ -1,122 +1,66 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AppShell } from './components/AppShell'
+import { RequireAuth } from './components/RequireAuth'
+import { Toasts } from './components/Toasts'
+import { RealtimeProvider } from './hooks/useRealtime'
+import { AuthProvider } from './lib/auth'
+import { createQueryClient } from './lib/queries'
+import { ToastProvider } from './lib/toast'
+import { ConversationsPage } from './pages/Conversations'
+import { ConversationThreadPage } from './pages/ConversationThread'
+import { EventDetailPage } from './pages/EventDetail'
+import { InboxPage } from './pages/Inbox'
+import { LandingPage } from './pages/Landing'
+import { LoginPage } from './pages/Login'
+import { NotFoundPage } from './pages/NotFound'
+import { SettingsPage } from './pages/Settings'
+import { DestinationsTab } from './pages/settings/DestinationsTab'
+import { RoutesTab } from './pages/settings/RoutesTab'
+import { SourcesTab } from './pages/settings/SourcesTab'
+import { StatsPage } from './pages/Stats'
+import { WakePage } from './pages/Wake'
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
+  const [queryClient] = useState(createQueryClient)
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ToastProvider>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/app">
+                <Route index element={<WakePage />} />
+                <Route element={<RequireAuth />}>
+                  <Route
+                    element={
+                      <RealtimeProvider>
+                        <AppShell />
+                      </RealtimeProvider>
+                    }
+                  >
+                    <Route path="inbox" element={<InboxPage />} />
+                    <Route path="events/:id" element={<EventDetailPage />} />
+                    <Route path="conversations" element={<ConversationsPage />} />
+                    <Route path="conversations/:id" element={<ConversationThreadPage />} />
+                    <Route path="stats" element={<StatsPage />} />
+                    <Route path="settings" element={<SettingsPage />}>
+                      <Route path="sources" element={<SourcesTab />} />
+                      <Route path="destinations" element={<DestinationsTab />} />
+                      <Route path="routes" element={<RoutesTab />} />
+                    </Route>
+                  </Route>
+                </Route>
+              </Route>
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+            <Toasts />
+          </AuthProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   )
 }
-
-export default App
