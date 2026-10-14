@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using RelayHub.Core.Demo;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Messaging;
 using RelayHub.Infrastructure.Data;
@@ -93,12 +94,15 @@ public sealed class MetaWebhookParser(RelayHubDbContext db, ILogger<MetaWebhookP
         }
         if (string.IsNullOrEmpty(mid)) return null;
 
+        var demoCustomer = DemoCatalog.IsDemoAccount(source.ExternalAccountId) ? DemoCustomers.FindByMetaId(senderId) : null;
+
         return new ParsedInbound(
             source,
             ExternalId: ParserJson.Clip(mid, 200),
             ExternalThreadId: ParserJson.Clip(senderId, 200),
-            SenderName: channel == "instagram" ? "Instagram user" : "Facebook user", // Meta sends only the scoped id; a profile lookup is a later step
-            SenderHandle: ParserJson.Clip(senderId, 200),
+            // Meta sends only the scoped id; a Graph profile lookup is a later step. Demo sources know their five regulars by id.
+            SenderName: demoCustomer?.Name ?? (channel == "instagram" ? "Instagram user" : "Facebook user"),
+            SenderHandle: demoCustomer is { } c ? (channel == "instagram" ? "@" + c.Handle : c.Name) : ParserJson.Clip(senderId, 200),
             Text: text,
             PayloadJson: evt.GetRawText(),
             At: at,

@@ -38,6 +38,13 @@ public static class DemoCustomers
         return regular ?? FromName(trimmed);
     }
 
+    /// <summary>
+    /// One of the five regulars by the Meta-scoped id used in simulated webhooks, or null. Real Meta webhooks carry only that id
+    /// (the name needs a Graph profile lookup), so the Meta parser uses this for demo sources only.
+    /// </summary>
+    public static DemoCustomer? FindByMetaId(string? metaId)
+        => string.IsNullOrEmpty(metaId) ? null : Pool.FirstOrDefault(c => c.MetaId == metaId);
+
     /// <summary>Deterministic customer for an arbitrary display name.</summary>
     public static DemoCustomer FromName(string name)
     {

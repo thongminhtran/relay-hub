@@ -25,6 +25,9 @@ public static class DemoCatalog
     /// <summary>The failure switch flips <c>failing</c> on every destination of the demo workspace whose name contains this.</summary>
     public const string FlakyNameMarker = "Flaky";
 
+    /// <summary>True for the Meta / email account ids the demo seeder assigns (they all start with "demo-"); real provider ids never do.</summary>
+    public static bool IsDemoAccount(string? externalAccountId) => externalAccountId?.StartsWith("demo-", StringComparison.Ordinal) == true;
+
     /// <summary>Plan 9.3: at most 500 demo events; when reached, the oldest <see cref="TrimBatch"/> are removed before a new one is accepted.</summary>
     public const int MaxEvents = 500;
     public const int TrimBatch = 100;
