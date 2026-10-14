@@ -282,3 +282,31 @@ export interface ProblemDetails {
   instance?: string
   errors?: Record<string, string[]>
 }
+
+// Demo controls (`/api/v1/demo/*`, Member policy, Demo-workspace tokens only — 403 `demo-only` otherwise)
+export type DemoChannel = Channel
+export const DEMO_CHANNELS: readonly DemoChannel[] = ['instagram', 'facebook', 'telegram', 'email', 'web']
+/** Matches RelayHub.Core.Demo.DemoCatalog.MaxSimulatedTextLength. */
+export const DEMO_MAX_TEXT = 500
+
+export interface DemoSimulateRequest {
+  channel: DemoChannel
+  text?: string
+  senderName?: string
+}
+export interface DemoSimulateResponse {
+  correlationId: string
+  channel: DemoChannel
+  sender: { name: string; handle: string | null; email: string | null }
+  text: string
+  hint: string
+}
+export interface DemoFailureMode {
+  enabled: boolean
+}
+export interface DemoResetResponse {
+  status: string
+  conversations: number
+  events: number
+  failureMode: boolean
+}

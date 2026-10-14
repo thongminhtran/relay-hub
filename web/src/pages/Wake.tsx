@@ -46,7 +46,7 @@ export function WakePage() {
     setDemoError(null)
     try {
       await loginDemo()
-      navigate('/app/inbox', { replace: true })
+      navigate('/app/inbox?demo=open', { replace: true })
     } catch (e) {
       const d = describeError(e)
       setDemoError(d.detail ? `${d.title} — ${d.detail}` : d.title)

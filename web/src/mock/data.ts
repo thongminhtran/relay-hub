@@ -89,6 +89,8 @@ export interface MockDb {
   routes: MockRoute[]
   conversations: MockConversation[]
   events: MockEvent[]
+  /** Demo "Simulate failure" switch: the Flaky destination answers 503 while on. */
+  failureMode: boolean
   ids: { source: number; destination: number; route: number; conversation: number; event: number; delivery: number }
 }
 
@@ -119,6 +121,7 @@ export function createMockDb(now = Date.now()): MockDb {
     routes: [],
     conversations: [],
     events: [],
+    failureMode: false,
     ids: { source: 10, destination: 20, route: 30, conversation: 100, event: 1000, delivery: 2000 },
   }
 
@@ -145,9 +148,12 @@ function seedWorkspace(db: MockDb, workspaceId: number, now: number): void {
     db.destinations.push(d)
     return d
   }
-  const discord = dst('discord', 'Discord #orders', { webhookUrl: 'https://discord.com/api/webhooks/1234••••••••', username: 'RelayHub' })
+  const discord = dst('discord', demo ? 'Discord (mock)' : 'Discord #orders', { webhookUrl: 'https://discord.com/api/webhooks/1234••••••••', username: 'RelayHub' })
   const teams = dst('teams', 'Teams · Front desk', { webhookUrl: 'https://prod-00.canadacentral.logic.azure.com/••••' })
-  const email = dst('email', 'Owner inbox', { to: 'owner@prairiebanhmi.example', subject: 'New message from {{name}}' })
+  // Demo: the second website-form destination is the "Flaky endpoint" the failure switch breaks (name contains "Flaky", like the API).
+  const email = demo
+    ? dst('discord', 'Flaky endpoint (mock)', { webhookUrl: 'https://discord.com/api/webhooks/9999••••••••', username: 'flaky', failing: false })
+    : dst('email', 'Owner inbox', { to: 'owner@prairiebanhmi.example', subject: 'New message from {{name}}' })
   if (!demo) dst('telegram', 'Telegram ops', { botToken: '5678••••••••', chatId: '-1001234567890' })
 
   const route = (sourceId: number, destinationId: number, template: string): MockRoute => {
@@ -310,4 +316,117 @@ function payloadFor(channel: Channel, name: string, handle: string, text: string
     case 'email':
       return { to: 'hello@prairiebanhmi.example', from: handle, fromName: name, subject: text.split('\n')[0], text: text.split('\n').slice(2).join('\n'), messageId: `<${hex(16)}@example.com>`, receivedAt }
   }
+}
+
+// ---- demo controls -------------------------------------------------------------------------------------------
+
+export interface DemoSender {
+  name: string
+  handle: string | null
+  email: string | null
+}
+export const DEMO_SENDERS: readonly DemoSender[] = [
+  { name: 'Linh Nguyen', handle: '@linh.eats.yyc', email: 'linh@example.com' },
+  { name: 'Daniel Okafor', handle: 'Facebook user', email: 'daniel@example.com' },
+  { name: 'Minh Tran', handle: '@minhtran', email: 'minh@example.com' },
+  { name: 'Rachel Kim', handle: 'rachel.kim@example.com', email: 'rachel.kim@example.com' },
+  { name: 'Sarah Mitchell', handle: 'sarah.mitchell@example.com', email: 'sarah.mitchell@example.com' },
+]
+export const DEMO_DEFAULT_TEXT: Record<Channel, string> = {
+  instagram: 'Do you have vegan options? Bringing 4 friends on Saturday!',
+  facebook: 'Are you open on Thanksgiving Monday?',
+  telegram: 'Can I order 3 lemongrass chicken bánh mì for pickup in 30 minutes?',
+  email: 'Gift cards?\n\nDo you sell gift cards? I’m looking for five $25 cards for my staff.',
+  web: 'Do you cater for 30 people next Friday?',
+}
+
+/** Demo retry profile (seconds) — the API's "demo" RetryProfile. */
+const DEMO_BACKOFF_MS = [2000, 4000, 8000, 16000, 32000]
+
+/** What the worker would do with a simulated webhook: conversation + event + one delivery per enabled route. */
+export function storeSimulated(db: MockDb, workspaceId: number, channel: Channel, text: string, sender: DemoSender, correlationId: string, now: number): MockEvent | null {
+  const type = channel === 'web' ? 'generic' : channel
+  const source = db.sources.find((s) => s.workspaceId === workspaceId && s.type === type && s.isEnabled)
+  if (!source) return null
+  const handle = channel === 'web' || channel === 'email' ? sender.email : sender.handle
+  let convo = db.conversations.find((c) => c.workspaceId === workspaceId && c.sourceId === source.id && c.senderName === sender.name)
+  if (!convo) {
+    convo = { id: ++db.ids.conversation, workspaceId, channel, sourceId: source.id, senderName: sender.name, senderHandle: handle, externalThreadId: handle }
+    db.conversations.push(convo)
+  }
+  const receivedAt = new Date(now).toISOString()
+  const ev: MockEvent = {
+    id: ++db.ids.event,
+    workspaceId,
+    sourceId: source.id,
+    conversationId: convo.id,
+    channel,
+    direction: 'in',
+    senderName: sender.name,
+    senderHandle: handle,
+    text,
+    receivedAt,
+    correlationId,
+    providerMessageId: null,
+    payload: payloadFor(channel, sender.name, handle ?? '', text, receivedAt),
+    deliveries: [],
+  }
+  for (const route of db.routes.filter((r) => r.workspaceId === workspaceId && r.sourceId === source.id && r.isEnabled)) {
+    const destination = db.destinations.find((d) => d.id === route.destinationId)
+    if (!destination?.isEnabled) continue
+    const flakyAndFailing = destination.name.includes('Flaky') && db.failureMode
+    if (!flakyAndFailing) {
+      ev.deliveries.push(makeDelivery(db, ev.id, route, 'ok', receivedAt, now))
+      continue
+    }
+    const d = makeDelivery(db, ev.id, route, 'pending', receivedAt, now)
+    ev.deliveries.push(d)
+    scheduleFlakyRetries(d, db, now)
+  }
+  db.events.unshift(ev)
+  return ev
+}
+
+/** 503 now, then retries at 2/4/8/16/32 s (each still 503 while failure mode is on), then DeadLettered. */
+function scheduleFlakyRetries(d: MockDelivery, db: MockDb, startedAt: number): void {
+  const fail = (at: number) => {
+    d.attemptCount += 1
+    d.attempts.push({ attemptNo: d.attemptCount, startedAt: new Date(at).toISOString(), durationMs: 40 + Math.floor(Math.random() * 80), httpStatus: 503, error: '503 simulated outage (demo failure mode)' })
+    d.lastError = '503 simulated outage (demo failure mode)'
+  }
+  const succeed = (at: number) => {
+    d.attemptCount += 1
+    d.attempts.push({ attemptNo: d.attemptCount, startedAt: new Date(at).toISOString(), durationMs: 120, httpStatus: 204, error: null })
+    d.status = 'Delivered'
+    d.lastError = null
+    d.nextAttemptAt = null
+  }
+  const step = (i: number, at: number) => {
+    if (!db.failureMode) {
+      succeed(at)
+      return
+    }
+    fail(at)
+    if (i >= DEMO_BACKOFF_MS.length) {
+      d.status = 'DeadLettered'
+      d.nextAttemptAt = null
+      return
+    }
+    d.status = 'Retrying'
+    const next = at + DEMO_BACKOFF_MS[i]
+    d.nextAttemptAt = new Date(next).toISOString()
+    setTimeout(() => step(i + 1, next), DEMO_BACKOFF_MS[i])
+  }
+  setTimeout(() => step(0, startedAt + 300), 300)
+}
+
+/** POST /api/v1/demo/reset: wipe the workspace's data and seed it again. */
+export function reseedWorkspace(db: MockDb, workspaceId: number): { conversations: number; events: number } {
+  db.sources = db.sources.filter((x) => x.workspaceId !== workspaceId)
+  db.destinations = db.destinations.filter((x) => x.workspaceId !== workspaceId)
+  db.routes = db.routes.filter((x) => x.workspaceId !== workspaceId)
+  db.conversations = db.conversations.filter((x) => x.workspaceId !== workspaceId)
+  db.events = db.events.filter((x) => x.workspaceId !== workspaceId)
+  seedWorkspace(db, workspaceId, Date.now())
+  return { conversations: db.conversations.filter((x) => x.workspaceId === workspaceId).length, events: db.events.filter((x) => x.workspaceId === workspaceId).length }
 }
