@@ -16,6 +16,7 @@ builder.Services.Configure<RelayHubOptions>(builder.Configuration.GetSection(Rel
 builder.Services.AddRelayHubInfrastructure(builder.Configuration.GetConnectionString("RelayHub"));
 builder.Services.AddRelayHubMessaging(builder.Configuration);
 builder.Services.AddHealthChecks().AddCheck<SqlHealthCheck>("sql", tags: ["ready"]);
+builder.Services.AddRateLimiter(DemoRateLimiting.Add);
 
 // OpenTelemetry → Application Insights (Azure Monitor distro): requests, dependencies (SQL, HTTP, queue) and logs.
 // The W3C trace id of each ingest request travels inside the queue message, so the worker's spans join the same trace.
@@ -26,6 +27,7 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseRateLimiter();
 
 app.MapOpenApi();
 app.MapScalarApiReference("/docs", options => options.WithTitle("RelayHub API"));
@@ -56,6 +58,7 @@ app.MapDeliveryEndpoints();
 app.MapSourceEndpoints();
 app.MapDestinationEndpoints();
 app.MapRouteEndpoints();
+app.MapDemoEndpoints();
 
 await DevSeeder.RunAsync(app);
 
