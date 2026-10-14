@@ -52,6 +52,105 @@ The public demo of plan section 9, API side. Everything lives in the workspace w
 - **Caps** (plan 9.3): `simulate` text ≤ 500 chars; when the demo workspace holds ≥ 500 events, the oldest 100 (with deliveries + attempts; conversations stay) are deleted before the new message is queued (`DemoSeeder.TrimOldestAsync`).
 - **Tests**: 19 unit (payload shapes, ExternalId rules, stable ids, sink ok vs failing) + 6 Docker (`DemoFlowTests`, `X-Workspace-Id: 2`): seed present; simulate web → processors → both mock destinations Delivered without touching the Discord connector; switch on → 503 → retries scheduled 2/4/8/16 s → DeadLettered + one alert → switch off → replay → Delivered on attempt 6; provider channels queued with the hook shapes; cap trims the oldest 100; 403 from Studio; reset.
 - Not on this branch (other agents / later): JWT + `RequireAuthorization("Member")` on the group, Turnstile, the dashboard buttons, keep-warm cron, CI running the Docker tests.
+## Week 4 — channels (branch `w4-channels`, 2026-10-14, Mac)
+
+Built in parallel with the Week 3 API / dashboard / infra branches against the shared contract of 2026-10-14 (hooks, reply channels,
+destination types, settings names). Everything below is in the repo and tested; nothing is connected to a live provider yet (that is the
+Week 4 evening work listed under "Point the providers at it").
+
+**Provider hooks** (`src/RelayHub.Api/Endpoints/ProviderHookEndpoints.cs`, anonymous, mapped from `MapIngestEndpoints`). Same rule as the
+generic hook: verify, enqueue one `IncomingMessage`, answer in milliseconds, never touch SQL. Each answers `503 "<channel> channel not configured"`
+while its secret is unset, and the API / worker log one startup warning listing the unset ones (`ChannelOptionsStartupCheck`).
+
+| Hook | Verifies | Queues | Answer |
+|---|---|---|---|
+| `GET /api/v1/hooks/meta?hub.mode=subscribe&hub.verify_token=&hub.challenge=` | token == `RelayHub:Meta:VerifyToken` | – | `200 text/plain <challenge>` / 403 |
+| `POST /api/v1/hooks/meta` | `X-Hub-Signature-256: sha256=<HMAC(raw body, RelayHub:Meta:AppSecret)>` | `Kind=meta, SourceKey="meta", ExternalId=sha256(body)[..32]` | `200 {}` (Meta needs 200) / 401 |
+| `POST /api/v1/hooks/telegram/{sourceKey}` | `X-Telegram-Bot-Api-Secret-Token == RelayHub:Telegram:WebhookSecret` | `Kind=telegram, SourceKey={sourceKey}, ExternalId="tg:"+update_id` | `200 {}` / 401 |
+| `POST /api/v1/hooks/email` | `X-RelayHub-Signature: sha256=<HMAC(raw body, RelayHub:Email:InboundSecret)>` | `Kind=email, SourceKey="email", ExternalId=messageId` | `202 {status:"queued"}` / 401 |
+
+Body limit is 32 KB on all hooks (the contract said 64 KB for Meta; a Storage Queue message is 64 KB *after* Base64 + envelope, so the
+generic hook's 32 KB ceiling is the honest number — a Meta batch is a few KB in practice).
+
+**Worker parsing** (`src/RelayHub.Infrastructure/Processing/Parsers/`). `IncomingProcessor` picks the `ISourceParser` for `msg.Kind`
+(`GenericParser` = the Week 2 path, `MetaWebhookParser`, `TelegramUpdateParser`, `EmailParser`); each returns zero or more `ParsedInbound`
+items and the processor runs the conversation upsert / event / dedupe / deliveries loop per item (change tracker cleared between items).
+Source lookup: Meta → `Source.Type` Facebook|Instagram **and** `ExternalAccountId == entry.id` (Page id / IG professional account id);
+Telegram → the one enabled Telegram source whose `Name == {sourceKey}`; email → Email source with `ExternalAccountId == to` (case-insensitive),
+else the single enabled Email source. Threads: PSID / IGSID, `chat.id`, sender address. Echoes (`is_echo`), `is_deleted`, read / delivery /
+reaction events, Telegram edits and callback queries produce nothing → new outcome `IncomingOutcome.Ignored` (not a warning). Unknown
+source or unusable payload → `Dropped` with a warning; parsers never throw (a throw = poison queue). Attachments are stored as
+`[attachment: image]` lines; Meta gives no profile name, so `SenderName` is "Instagram user" / "Facebook user" and `SenderHandle` the scoped id
+(a Graph profile lookup is a later improvement). Event `ReceivedAt` / `Conversation.LastInboundAt` use the provider timestamp (what the 24 h
+reply window should count from), falling back to our clock when it is missing or implausible.
+
+**Reply channels** (`src/RelayHub.Infrastructure/Replies/`, `IReplyChannel`, synchronous, 10 s timeout, never throw): `MetaReplyChannel`
+(`POST graph.facebook.com/v21.0/{ExternalAccountId}/messages`, `Authorization: Bearer <pageAccessToken>`, `messaging_type: RESPONSE`; Meta error
+10 / 2018278 → `Fail("Reply window closed", 400)`; registered once for Instagram and once for Facebook), `TelegramReplyChannel` (`sendMessage`),
+`EmailReplyChannel` (Resend, from = source `fromAddress` ?? `RelayHub:Resend:From`, subject `Re: <last inbound subject>` else `Reply from <workspace>`,
+`In-Reply-To` for threading; registered for Email **and** Generic — a web-form conversation whose `SenderHandle` is an email can be answered by mail).
+`ReplyThreadLookup` is the only piece that reads SQL (last inbound payload + workspace name); it is virtual so unit tests stub it.
+
+**Destination connectors** (`src/RelayHub.Infrastructure/Connectors/`): `TeamsConnector` (Workflows webhook, Adaptive Card 1.4 TextBlock),
+`EmailConnector` (Resend, `{ to, from?, subject? }`, subject may use `{{name}} {{channel}} {{email}} {{receivedAt}}`), `TelegramConnector`
+(`{ botToken, chatId }`), `HttpConnector` (`{ url, method POST|PUT, headers?, bodyTemplate? }`). HTTP destinations: https only, no redirects,
+custom headers except connection headers, `bodyTemplate` tokens are JSON-escaped when the template is JSON, and the **SSRF guard**
+(`RelayHub.Core.Channels.SsrfGuard`) runs three times — when the destination is saved (`DestinationEndpoints.ValidateConfigAsync`, DNS included),
+right before each send (clear error in the attempt history), and inside `SocketsHttpHandler.ConnectCallback`, which connects only to the
+address the guard just accepted (DNS rebinding cannot slip through). Refused: loopback, RFC 1918, 169.254/16 (cloud metadata), CGNAT,
+multicast, unspecified, IPv6 link/site/unique-local, IPv4-mapped forms, `localhost`, `.local`, `.internal`, dotless names. `POST /destinations`
+answers 403 for type `http` in the demo workspace. `ValidateConfig` now covers all five types; 429 / 5xx = retryable like Discord.
+
+**Source configs** (`RelayHub.Core.Channels.SourceConfigs.Validate(SourceType, JsonElement?)`): generic → `{}`; instagram / facebook need
+`pageAccessToken` (+ optional `pageName`); telegram needs `botToken` matching `^\d+:[A-Za-z0-9_-]{30,}$`; email optional `fromAddress`.
+Typed accessors (`PageAccessToken`, `BotToken`, `FromAddress`) are what the reply channels read. The sources API call site is on the `w3-api` branch.
+
+**Settings** (`ChannelOptions`, section `RelayHub`; Key Vault `A--B` ↔ app setting `A__B` ↔ `A:B`; all optional):
+
+| Setting | GitHub secret (infra branch) | Used by |
+|---|---|---|
+| `RelayHub:Meta:AppSecret` | `META_APP_SECRET` | API: signature of every Meta webhook body |
+| `RelayHub:Meta:VerifyToken` | `META_VERIFY_TOKEN` | API: Meta's one-time GET verification |
+| `RelayHub:Telegram:WebhookSecret` | `TELEGRAM_WEBHOOK_SECRET` | API: `secret_token` header on Telegram updates |
+| `RelayHub:Email:InboundSecret` | `EMAIL_INBOUND_SECRET` | API: signature from the Cloudflare Email Worker |
+| `RelayHub:Resend:ApiKey` | `RESEND_API_KEY` | API (email replies) + worker (email destinations) |
+| `RelayHub:Resend:From` | `RESEND_FROM` | default sender, e.g. `RelayHub <inbox@yourdomain.com>` (domain verified in Resend) |
+
+Local dev: `dotnet user-secrets set "RelayHub:Meta:AppSecret" "..."` etc. in `src/RelayHub.Api`; the worker reads the same names from
+`local.settings.json` (`RelayHub__Resend__ApiKey`).
+
+**Point the providers at it** (free evening work, nothing in code changes):
+- *Meta* (Facebook Page + Instagram): Meta developer app in development mode → Add product **Messenger** (and **Instagram** → Messenger API for
+  Instagram). Webhooks → callback URL `https://<api>/api/v1/hooks/meta`, verify token = the value you put in `META_VERIFY_TOKEN`; subscribe the
+  Page to `messages`, `messaging_postbacks` (and `messaging_echoes` is fine — echoes are ignored); for Instagram subscribe `messages`. App secret
+  (Settings → Basic) → `META_APP_SECRET`. Generate a Page access token with `pages_messaging` (+ `instagram_manage_messages`) and create the
+  sources: `{ "name": "studio-page", "type": "facebook", "externalAccountId": "<PAGE_ID>", "config": { "pageAccessToken": "..." } }` and
+  `{ "name": "studio-ig", "type": "instagram", "externalAccountId": "<IG_PROFESSIONAL_ACCOUNT_ID>", "config": { "pageAccessToken": "..." } }`.
+  Only app role holders can message the Page while the app is in development mode (plan decision).
+- *Telegram*: `@BotFather` → `/newbot` → token. Create the source `{ "name": "studio-bot", "type": "telegram", "config": { "botToken": "<token>" } }`,
+  pick a random secret for `TELEGRAM_WEBHOOK_SECRET` (`openssl rand -hex 32`), then:
+  ```bash
+  curl "https://api.telegram.org/bot<token>/setWebhook?url=https://<api>/api/v1/hooks/telegram/studio-bot&secret_token=<TELEGRAM_WEBHOOK_SECRET>&allowed_updates=%5B%22message%22%5D"
+  curl "https://api.telegram.org/bot<token>/getWebhookInfo"     # last_error_message tells you if the API refused it
+  ```
+  For a Telegram *destination* (push to your own phone) message the bot once, read your chat id from `getUpdates` (or `@userinfobot`), then
+  `{ "type": "telegram", "config": { "botToken": "<token>", "chatId": "<id>" } }`.
+- *Email in*: `infra/cloudflare-email-worker/README.md` (wrangler deploy + Email Routing rule → Worker; same secret in `EMAIL_INBOUND_SECRET`),
+  then an `email` source with `externalAccountId` = the inbound address.
+- *Email out* (replies + email destinations): Resend account, verify the sending domain (DKIM/SPF records in Cloudflare), API key → `RESEND_API_KEY`,
+  sender → `RESEND_FROM`.
+- *Teams*: Teams channel → Workflows → "Post to a channel when a webhook request is received" → copy the URL (`*.logic.azure.com`) →
+  `{ "type": "teams", "config": { "webhookUrl": "..." } }`.
+
+**Tests**: 137 unit (signature valid / tampered / missing; Meta parser page / instagram / echo / attachment / unknown page / batch; Telegram and
+email parsers; SSRF guard addresses + URL rules; `SourceConfigs`; reply channels and connectors against a handler-based fake `HttpClient`) +
+14 integration, of which 8 new Docker tests in `tests/RelayHub.IntegrationTests/ChannelFlowTests.cs` (own `ChannelApiFactory` with the channel
+secrets; sources / destinations / routes written through the DbContext so the tests do not depend on the REST config endpoints or their auth).
+
+**Known gaps / follow-ups**: no Graph profile lookup for Meta sender names; Telegram bot tokens appear in request URLs (Telegram API design) —
+check HttpClient instrumentation redaction before enabling URL logging; the destination-validation integration test calls `POST /destinations`
+and will need a bearer token after the auth merge; `IRealtimeNotifier.EventCreatedAsync` is called from `IncomingProcessor.StoreAsync` — if the
+API branch added the same call, keep one.
 
 Week 1 — done (2026-10-11, Windows PC):
 - Repo, .NET 10 solution, Vite React TS scaffold, GitHub Actions CI (green).
@@ -129,3 +228,6 @@ Question bank to grow over time: `docs/interview-questions.md` (create it on fir
 - 2026-10-13 — Testcontainers under Colima failed with `invalid mount config for type "bind": stat ~/.colima/default/docker.sock: operation not supported`: Ryuk bind-mounts the Docker socket, but the host-side path is a Colima socket that does not exist inside the VM. Fix: `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock`.
 - 2026-10-13 — `secrets.json` written by `dotnet user-secrets` starts with a UTF-8 BOM; a `json.load` in a shell helper threw, the SA password came out empty and the mssql container restart-looped with "password too short". Fix: read with `utf-8-sig`. Lesson: wait for the container to be healthy and check `docker logs` before blaming the image.
 - 2026-10-11 — `dotnet run --no-build` right after `dotnet user-secrets init` silently ignored the secrets (UserSecretsId is an assembly attribute) → API fell back to the placeholder connection string and returned 500. Fix: rebuild.
+- 2026-10-14 — Making `IncomingProcessor` loop over a Meta batch exposed a latent EF Core trap in the Week 2 duplicate path: after `SaveChanges` fails on the unique (SourceId, ExternalId) index, the rejected `Event` stays tracked as Added, so the *next* item's `SaveChanges` retries the same insert and fails again — one duplicate `mid` would have poisoned every later message in the batch. Week 2 never saw it because one queue message was one event and the method returned right after the catch. Fix: `db.ChangeTracker.Clear()` after each item (success or duplicate), and a Docker test that stores two messages after a duplicate in the same run. Caught while designing the loop, not in production — it still goes in the journal because "why do you clear the change tracker there?" is a fair interview question.
+- 2026-10-14 — The contract allowed 64 KB Meta webhook bodies, but a Storage Queue message is capped at 64 KB *after* Base64 encoding (≈ 48 KB of raw bytes) and the `IncomingMessage` envelope JSON-escapes the payload on top of that. A 64 KB body would have passed the hook and then failed at `EnqueueIncomingAsync` with a 500 — Meta would retry and eventually disable the subscription. Kept the generic hook's 32 KB ceiling for all hooks (a Meta batch is a few KB); the claim-check (blob pointer) stays the answer if a channel ever needs more.
+- 2026-10-14 — SSRF guard design: validating the URL only when the destination is saved is not enough, because the owner's DNS record can later point at a private address (rebinding) and `HttpClient` resolves the name again at send time. Checking again "right before sending" still leaves a window between the check and the connect. Closed it with `SocketsHttpHandler.ConnectCallback`: the handler itself resolves, vets and connects to the vetted address only, with `AllowAutoRedirect = false` so a public host cannot bounce the request to 169.254.169.254 either.

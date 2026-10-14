@@ -11,10 +11,12 @@ The plan is the source of truth: `docs/plan-src/plan.md` (readable) → `docs/Re
 ## Layout
 
 ```
-src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest (verify + enqueue only), REST API, replay, demo endpoints (/api/v1/demo), Scalar docs at /docs; Startup/DevSeeder + DemoSeeder
+src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest (verify + enqueue only) incl. Meta / Telegram / email hooks, REST API, replay, demo endpoints (/api/v1/demo), Scalar docs at /docs; Startup/DevSeeder + DemoSeeder
 src/RelayHub.Worker          Azure Functions isolated worker: ProcessIncoming (incoming queue), ProcessDelivery (deliveries queue), PoisonAlerts
-src/RelayHub.Core            entities, enums, IDestinationConnector, IRelayQueues + queue message records, ApiKeys (HMAC), TemplateRenderer, Demo/ (catalog, fake customers, payload builders)
-src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord, DemoSinkConnector), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts
+src/RelayHub.Core            entities, enums, IDestinationConnector, IReplyChannel, IRealtimeNotifier, IRelayQueues + queue message records, ApiKeys + WebhookSignatures (HMAC), SourceConfigs, SsrfGuard, TemplateRenderer, Demo/ (catalog, fake customers, payload builders)
+src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord, Teams, email/Resend, Telegram, HTTP, DemoSinkConnector), reply channels (Meta, Telegram, Resend),
+                             Processing/Parsers (one ISourceParser per IncomingMessage.Kind), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts, ChannelOptions
+infra/cloudflare-email-worker  Email Routing → Worker → signed POST /api/v1/hooks/email (wrangler)
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
 web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
@@ -50,6 +52,8 @@ cd web && npm ci && npm run build
    dotnet user-secrets set "RelayHub:MigrateOnStartup" "true"
    dotnet user-secrets set "RelayHub:SeedOnStartup" "true"
    dotnet user-secrets set "RelayHub:SeedDiscordWebhookUrl" "https://discord.com/api/webhooks/..."   # optional
+   # Week 4 channels, all optional (hooks answer 503 until set): RelayHub:Meta:AppSecret, RelayHub:Meta:VerifyToken,
+   # RelayHub:Telegram:WebhookSecret, RelayHub:Email:InboundSecret, RelayHub:Resend:ApiKey, RelayHub:Resend:From
    ```
    After `user-secrets init` or any csproj change, rebuild before `dotnet run --no-build` (the secrets id is compiled in).
 4. The seeder logs the `website-contact` API key on startup. Keys are derived from the master key, never stored.
@@ -65,6 +69,9 @@ cd web && npm ci && npm run build
 - Every query is workspace-scoped through EF Core global query filters (`ICurrentWorkspace`). Until JWT auth (Week 3) the workspace comes from the `X-Workspace-Id` header, default 1 = Studio. Do not remove the filters.
 - Source API keys are stateless signed keys `src_{keyId}_{hmac}`; verify with constant-time compare; the key id finds the source.
 - Replies are synchronous (user is waiting), notification deliveries are asynchronous with backoff 30 s / 2 min / 10 min / 30 min / 1 h, dead-letter after 5 attempts. `DeliveryDispatcher` owns that rule; reuse it from the worker.
+- Provider hooks (`/api/v1/hooks/meta`, `/hooks/telegram/{sourceKey}`, `/hooks/email`) verify the provider's signature / secret token over the raw bytes and enqueue, without SQL — exactly like the generic hook. The worker finds the source afterwards: Meta by `Source.ExternalAccountId` (Page id / Instagram account id = `entry.id`), Telegram by the source name in the URL, email by the `to` address. Unknown source or bad payload = `Dropped` (never a throw); echoes / receipts = `Ignored`. Secrets live in `ChannelOptions` (section `RelayHub`), all optional: an unset one makes its hook answer 503.
+- Replies are synchronous through `IReplyChannel` (one registration per source type: Meta for Instagram and Facebook, Telegram, Resend email for Email and for web-form conversations that have a sender email). The API checks the Meta 24-hour window from `Conversation.LastInboundAt` before calling the channel; the channel maps Meta error 10 / 2018278 to "Reply window closed". Channels never throw — `ReplyResult.Fail` instead.
+- HTTP destinations are owner-only (403 in the demo workspace) and go through the SSRF guard three times: on save (incl. DNS), before each send, and in the `SocketsHttpHandler.ConnectCallback` that pins the connection to the vetted public address. https only, no redirects, no loopback / private / link-local (169.254.169.254) / multicast / unspecified / IPv6 site-local targets, no `localhost`. Do not loosen this for convenience; use a public tunnel URL when testing locally.
 - Discord / Telegram / email are "borrowed" push notifications; there is no mobile app.
 - Meta channels: the app stays in development mode (only role holders can message it). The public demo uses simulators, never live Meta. Real-usage metrics come from the website form, email and Telegram.
 - Demo workspace (`Workspace.IsDemo`): deliveries and "send test" go through `DemoSinkConnector` (`DeliveryDispatcher` `mock: true`), never to real channels; the sink is not an `IDestinationConnector`, so it can never be picked by type for a real workspace. `"failing": true` on a destination config makes it answer a retryable 503 (the failure switch). Sample data is seeded once (`DemoSeeder`, only when the workspace has zero events) and capped at 500 events (`POST /api/v1/demo/simulate` trims the oldest 100 first); `POST /api/v1/demo/reset` restores it. The demo endpoints answer 403 `demo-only` for any other workspace.

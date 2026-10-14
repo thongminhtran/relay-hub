@@ -1,0 +1,11 @@
+name = "relayhub-email-worker"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The RelayHub API the mail is posted to (no trailing slash).
+RELAYHUB_API_URL = "https://app-relayhub-prod-api-s4w2qp.azurewebsites.net"
+# Optional: also forward every mail to this verified Email Routing destination address.
+# FORWARD_TO = "you@example.com"
+
+# Secret, never in this file: `wrangler secret put RELAYHUB_INBOUND_SECRET` (same value as RelayHub:Email:InboundSecret).
