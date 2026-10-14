@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using RelayHub.Api.Endpoints;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Security;
 using RelayHub.Infrastructure;
@@ -7,10 +9,12 @@ using RelayHub.Infrastructure.Data;
 
 namespace RelayHub.Api.Startup;
 
-/// <summary>Local-development helper: migrates the database and creates the first workspace, source and Discord route.</summary>
+/// <summary>Startup helper: migrates the database (dev) and creates the first workspaces, the owner + demo logins, a source and an optional Discord route.</summary>
 public static class DevSeeder
 {
     private const string DevMasterKey = "dev-only-master-key-change-me";
+    public const string DevOwnerEmail = "owner@relayhub.local";
+    public const string DevOwnerPassword = "relayhub-dev-owner";
 
     public static async Task RunAsync(WebApplication app)
     {
@@ -23,6 +27,15 @@ public static class DevSeeder
                 throw new InvalidOperationException("RelayHub:ApiKeyMasterKey must be configured outside Development.");
             options.ApiKeyMasterKey = DevMasterKey;
             log.LogWarning("RelayHub:ApiKeyMasterKey is not set; using the built-in development key.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.OwnerEmail) || string.IsNullOrWhiteSpace(options.OwnerPassword))
+        {
+            if (!app.Environment.IsDevelopment())
+                throw new InvalidOperationException("RelayHub:OwnerEmail and RelayHub:OwnerPassword must be configured outside Development.");
+            options.OwnerEmail = DevOwnerEmail;
+            options.OwnerPassword = DevOwnerPassword;
+            log.LogWarning("RelayHub:OwnerEmail / OwnerPassword are not set; using the built-in development owner {Email}.", DevOwnerEmail);
         }
 
         if (!options.MigrateOnStartup && !options.SeedOnStartup) return;
@@ -47,6 +60,8 @@ public static class DevSeeder
             db.Workspaces.Add(new Workspace { Name = "Demo", IsDemo = true, RetryProfile = "demo" });
             await db.SaveChangesAsync();
         }
+
+        await SeedUsersAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>(), options, studio, log);
 
         var source = await db.Sources.FirstOrDefaultAsync(s => s.WorkspaceId == studio.Id && s.Name == "website-contact");
         if (source is null)
@@ -87,5 +102,37 @@ public static class DevSeeder
 
         // Public demo workspace: sources per channel, mocked destinations, sample conversations (Week 5).
         await DemoSeeder.RunAsync(db, log);
+    }
+
+    /// <summary>
+    /// Owner: created from RelayHub:OwnerEmail / OwnerPassword; when the configured password no longer matches the stored hash
+    /// (rotated secret), the hash is replaced, so a redeploy is enough to change the password. Demo: a role-Demo row in the Demo
+    /// workspace with an unguessable password; it only exists so demo tokens have a real subject.
+    /// </summary>
+    private static async Task SeedUsersAsync(RelayHubDbContext db, IPasswordHasher<User> hasher, RelayHubOptions options, Workspace studio, ILogger log)
+    {
+        var email = options.OwnerEmail.Trim().ToLowerInvariant();
+        var owner = await db.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Owner && u.WorkspaceId == studio.Id);
+        if (owner is null)
+        {
+            owner = new User { Email = email, PasswordHash = "", Role = UserRole.Owner, WorkspaceId = studio.Id };
+            owner.PasswordHash = hasher.HashPassword(owner, options.OwnerPassword);
+            db.Users.Add(owner);
+            log.LogInformation("Created owner user {Email}.", email);
+        }
+        else
+        {
+            if (owner.Email != email) { owner.Email = email; log.LogInformation("Owner email updated to {Email}.", email); }
+            if (hasher.VerifyHashedPassword(owner, owner.PasswordHash, options.OwnerPassword) != PasswordVerificationResult.Success)
+            {
+                owner.PasswordHash = hasher.HashPassword(owner, options.OwnerPassword);
+                log.LogInformation("Owner password hash updated from configuration.");
+            }
+        }
+        await db.SaveChangesAsync();
+
+        var demo = await db.Workspaces.Where(w => w.IsDemo).OrderBy(w => w.Id).FirstOrDefaultAsync();
+        if (demo is not null && !await db.Users.AnyAsync(u => u.Email == AuthEndpoints.DemoUserEmail))
+            await AuthEndpoints.CreateDemoUserAsync(db, hasher, demo, CancellationToken.None);
     }
 }

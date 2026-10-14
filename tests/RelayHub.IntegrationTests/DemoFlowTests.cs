@@ -20,12 +20,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
 {
     private const int DemoWorkspaceId = 2;
 
-    private HttpClient DemoClient()
-    {
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Workspace-Id", DemoWorkspaceId.ToString());
-        return client;
-    }
+    private Task<HttpClient> DemoClient() => factory.CreateDemoClientAsync();
 
     private void ResetFakes()
     {
@@ -71,7 +66,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
     [Fact]
     public async Task Seed_creates_the_demo_configuration_and_a_week_of_sample_conversations()
     {
-        using var client = DemoClient();
+        using var client = await DemoClient();
 
         var sources = await client.GetFromJsonAsync<JsonElement>("/api/v1/sources");
         string[] expectedSources = [DemoCatalog.WebsiteSource, DemoCatalog.InstagramSource, DemoCatalog.FacebookSource, DemoCatalog.TelegramSource, DemoCatalog.EmailSource];
@@ -101,7 +96,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
         Assert.True(statuses.Count(s => s == "Delivered") > 20);
 
         // Nothing of this leaks into the Studio workspace.
-        using var studio = factory.CreateClient();
+        using var studio = await factory.CreateOwnerClientAsync();
         var studioSources = await studio.GetFromJsonAsync<JsonElement>("/api/v1/sources");
         Assert.DoesNotContain(studioSources.EnumerateArray(), s => s.GetProperty("name").GetString()!.StartsWith("demo-"));
     }
@@ -110,7 +105,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
     public async Task Simulated_web_message_flows_through_the_worker_to_the_mock_sink_and_the_failure_switch_drives_retry_dead_letter_replay()
     {
         ResetFakes();
-        using var client = DemoClient();
+        using var client = await DemoClient();
         await SetFailureModeAsync(client, false);
 
         // 1. Simulate: the API only queues; the message looks like the real website hook's.
@@ -210,7 +205,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
     public async Task Provider_channels_are_queued_with_the_hook_shapes()
     {
         ResetFakes();
-        using var client = DemoClient();
+        using var client = await DemoClient();
 
         foreach (var (channel, kind, sourceKey) in new[]
         {
@@ -237,7 +232,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
     public async Task Simulate_removes_the_oldest_hundred_events_once_the_cap_is_reached()
     {
         ResetFakes();
-        using var client = DemoClient();
+        using var client = await DemoClient();
 
         List<long> oldestIds;
         int before;
@@ -291,20 +286,19 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
         ResetFakes();
 
         // Studio (default workspace) and unknown workspaces: 403 demo-only, nothing queued.
-        using var studio = factory.CreateClient();
+        using var studio = await factory.CreateOwnerClientAsync();
         var forbidden = await studio.PostAsJsonAsync("/api/v1/demo/simulate", new { channel = "web" });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
         var problem = await forbidden.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("https://relayhub.dev/problems/demo-only", problem.GetProperty("type").GetString());
         Assert.Equal(HttpStatusCode.Forbidden, (await studio.GetAsync("/api/v1/demo/failure-mode")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await studio.PostAsync("/api/v1/demo/reset", null)).StatusCode);
-        using var unknown = factory.CreateClient();
-        unknown.DefaultRequestHeaders.Add("X-Workspace-Id", "999");
-        Assert.Equal(HttpStatusCode.Forbidden, (await unknown.PostAsJsonAsync("/api/v1/demo/simulate", new { channel = "web" })).StatusCode);
+        using var anonymous = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsJsonAsync("/api/v1/demo/simulate", new { channel = "web" })).StatusCode);
         Assert.Empty(factory.Queues.Incoming);
 
         // Demo workspace, bad input: validation problems.
-        using var client = DemoClient();
+        using var client = await DemoClient();
         var badChannel = await client.PostAsJsonAsync("/api/v1/demo/simulate", new { channel = "whatsapp" });
         Assert.Equal(HttpStatusCode.BadRequest, badChannel.StatusCode);
         Assert.True((await badChannel.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors").TryGetProperty("channel", out _));
@@ -318,7 +312,7 @@ public class DemoFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServe
     public async Task Reset_restores_the_sample_data_and_turns_the_failure_switch_off()
     {
         ResetFakes();
-        using var client = DemoClient();
+        using var client = await DemoClient();
 
         await SetFailureModeAsync(client, true);
         await SimulateWebAsync(client, "Extra message before reset", "Sofia Alvarez");

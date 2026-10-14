@@ -16,6 +16,7 @@ using RelayHub.Infrastructure.Messaging;
 using RelayHub.Infrastructure.Processing;
 using RelayHub.Infrastructure.Processing.Parsers;
 using RelayHub.Infrastructure.Replies;
+using RelayHub.Infrastructure.Realtime;
 
 namespace RelayHub.Infrastructure;
 
@@ -101,7 +102,7 @@ public static class DependencyInjection
             sp.GetRequiredService<ReplyThreadLookup>(), type, sp.GetRequiredService<ILogger<EmailReplyChannel>>());
     }
 
-    /// <summary>Storage Queues (section "Storage") and operator alerts ("RelayHub:OpsDiscordWebhookUrl").</summary>
+    /// <summary>Storage Queues (section "Storage"), operator alerts ("RelayHub:OpsDiscordWebhookUrl") and live dashboard updates (section "SignalR").</summary>
     public static IServiceCollection AddRelayHubMessaging(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
@@ -113,6 +114,16 @@ public static class DependencyInjection
         // Provider secrets for the hooks (API) and the Resend / Telegram senders (worker + API). All optional; one startup warning lists what is unset.
         services.Configure<ChannelOptions>(configuration.GetSection(ChannelOptions.SectionName));
         services.AddHostedService<ChannelOptionsStartupCheck>();
+        // Azure SignalR (serverless) is optional: SignalR:Endpoint (identity) or SignalR:ConnectionString (local). Unset → the NullRealtimeNotifier
+        // registered by AddRelayHubInfrastructure stays, and the API answers 503 realtime-unavailable on negotiate.
+        var signalR = configuration.GetSection(SignalROptions.SectionName);
+        services.Configure<SignalROptions>(signalR);
+        if (!string.IsNullOrWhiteSpace(signalR[nameof(SignalROptions.Endpoint)]) || !string.IsNullOrWhiteSpace(signalR[nameof(SignalROptions.ConnectionString)]))
+        {
+            services.AddSingleton<SignalRRealtimeNotifier>();
+            services.Replace(ServiceDescriptor.Singleton<IRealtimeNotifier>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>()));
+            services.AddSingleton<IRealtimeNegotiator>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>());
+        }
 
         return services;
     }

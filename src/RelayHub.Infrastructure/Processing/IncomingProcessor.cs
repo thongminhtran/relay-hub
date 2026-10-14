@@ -34,7 +34,7 @@ public sealed class IncomingProcessor(
     DeliveryDispatcher dispatcher,
     IRelayQueues queues,
     IEnumerable<ISourceParser> parsers,
-    IRealtimeNotifier notifier,
+    IRealtimeNotifier realtime,
     ILogger<IncomingProcessor> log)
 {
     private const int MaxTextLength = 4000;
@@ -147,7 +147,7 @@ public sealed class IncomingProcessor(
                 new DeliveryMessage(delivery.Id, evt.WorkspaceId, evt.CorrelationId, msg.TraceParent, AfterAttempt: 0, DeliveryReasons.Initial),
                 visibilityDelay: null, ct);
         }
-        await notifier.EventCreatedAsync(evt, ct);
+        await realtime.EventCreatedAsync(evt, source.Name, ct);
 
         log.LogInformation("Event {EventId} stored from {Source} ({Channel}); {Deliveries} deliveries queued", evt.Id, source.Name, evt.Channel, deliveries.Count);
         db.ChangeTracker.Clear();

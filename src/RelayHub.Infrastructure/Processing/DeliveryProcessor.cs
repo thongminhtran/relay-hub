@@ -31,6 +31,7 @@ public sealed class DeliveryProcessor(
     DeliveryDispatcher dispatcher,
     IRelayQueues queues,
     IOpsAlerts alerts,
+    IRealtimeNotifier realtime,
     ILogger<DeliveryProcessor> log)
 {
     public async Task<DeliveryOutcome> ProcessAsync(DeliveryMessage msg, CancellationToken ct)
@@ -66,6 +67,7 @@ public sealed class DeliveryProcessor(
 
         // Demo workspaces never reach a real channel: the attempt goes to DemoSinkConnector (plan 9.3).
         await dispatcher.AttemptAsync(delivery, destination, text, evt, retryProfile, mock: workspace?.IsDemo ?? false, ct);
+        await realtime.DeliveryUpdatedAsync(delivery, msg.WorkspaceId, ct);
 
         switch (delivery.Status)
         {
@@ -94,6 +96,7 @@ public sealed class DeliveryProcessor(
         delivery.NextAttemptAt = null;
         delivery.LastError = reason;
         await db.SaveChangesAsync(ct);
+        await realtime.DeliveryUpdatedAsync(delivery, ambient.WorkspaceId ?? 0, ct);
         log.LogWarning("Delivery {DeliveryId} dead-lettered without an attempt: {Reason}", delivery.Id, reason);
         await alerts.NotifyAsync($"Delivery {delivery.Id} dead-lettered", reason, ct);
         return DeliveryOutcome.DeadLettered;

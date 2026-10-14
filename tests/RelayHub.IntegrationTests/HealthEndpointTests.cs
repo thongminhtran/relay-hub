@@ -28,4 +28,15 @@ public class HealthEndpointTests(WebApplicationFactory<Program> factory) : IClas
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Api_without_bearer_is_401_before_any_database_call()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/events");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
 }

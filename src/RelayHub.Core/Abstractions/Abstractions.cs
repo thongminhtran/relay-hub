@@ -47,6 +47,8 @@ public interface IReplyChannel
 public interface IRealtimeNotifier
 {
     Task EventCreatedAsync(Event evt, CancellationToken ct);
+    /// <summary>Same as <see cref="EventCreatedAsync(Event, CancellationToken)"/> but carries the source name the inbox shows. Default: forwards without it.</summary>
+    Task EventCreatedAsync(Event evt, string? sourceName, CancellationToken ct) => EventCreatedAsync(evt, ct);
     Task DeliveryUpdatedAsync(Delivery delivery, int workspaceId, CancellationToken ct);
     Task ReplySentAsync(Event reply, CancellationToken ct);
 }

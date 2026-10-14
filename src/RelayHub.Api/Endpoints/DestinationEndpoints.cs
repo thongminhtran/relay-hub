@@ -1,7 +1,9 @@
 using System.Net.Mail;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using RelayHub.Api.Auth;
 using RelayHub.Core.Channels;
 using RelayHub.Core.Domain;
 using RelayHub.Infrastructure;
@@ -20,15 +22,15 @@ public static partial class DestinationEndpoints
 
     public static IEndpointRouteBuilder MapDestinationEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/destinations").WithTags("Configuration");
+        var group = app.MapGroup("/api/v1/destinations").WithTags("Configuration").RequireAuthorization(AuthPolicies.Member);
 
         group.MapGet("/", ListAsync).WithName("ListDestinations");
-        group.MapPost("/", CreateAsync).WithName("CreateDestination")
+        group.MapPost("/", CreateAsync).WithName("CreateDestination").RequireAuthorization(AuthPolicies.Owner)
              .WithSummary("Create a destination. Configs: discord { webhookUrl, username? } · teams { webhookUrl } (Workflows webhook) · email { to, from?, subject? } (Resend) · telegram { botToken, chatId } · http { url, method, headers?, bodyTemplate? } (https only, SSRF-guarded, owner workspaces only).");
         group.MapGet("/{id:int}", GetAsync).WithName("GetDestination");
-        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateDestination");
-        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteDestination");
-        group.MapPost("/{id:int}/test", TestAsync).WithName("TestDestination").WithSummary("Send a test message to this destination.");
+        group.MapPut("/{id:int}", UpdateAsync).WithName("UpdateDestination").RequireAuthorization(AuthPolicies.Owner);
+        group.MapDelete("/{id:int}", DeleteAsync).WithName("DeleteDestination").RequireAuthorization(AuthPolicies.Owner);
+        group.MapPost("/{id:int}/test", TestAsync).WithName("TestDestination").WithSummary("Send a test message to this destination (mocked in the Demo workspace: nothing leaves the system).");
 
         return app;
     }
@@ -93,15 +95,15 @@ public static partial class DestinationEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> TestAsync(int id, RelayHubDbContext db, AmbientWorkspace ambient, DeliveryDispatcher dispatcher, CancellationToken ct)
+    private static async Task<IResult> TestAsync(int id, ClaimsPrincipal user, RelayHubDbContext db, DeliveryDispatcher dispatcher, CancellationToken ct)
     {
         var destination = await db.Destinations.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, ct);
         if (destination is null) return NotFound("Destination");
 
-        // In a demo workspace the test message goes to the mock sink, never to the real channel.
-        var mock = await db.Workspaces.AsNoTracking().Where(w => w.Id == ambient.WorkspaceIdOrDefault()).Select(w => w.IsDemo).SingleOrDefaultAsync(ct);
+        // Demo workspace: the test goes to DemoSinkConnector (a realistic mocked attempt), never to the real channel.
+        var mock = user.IsDemo();
         var result = await dispatcher.SendTestAsync(destination, mock, ct);
-        return Results.Ok(new { result.Succeeded, result.HttpStatus, result.Error });
+        return Results.Ok(new { result.Succeeded, result.HttpStatus, result.Error, Mocked = mock });
     }
 
     /// <summary>Shape rules, then (HTTP only) the DNS half of the SSRF guard — refusing a URL that resolves to a private address before it is stored.</summary>

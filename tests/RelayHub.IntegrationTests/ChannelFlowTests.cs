@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using RelayHub.Api.Startup;
 using RelayHub.Core.Abstractions;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Messaging;
@@ -37,6 +38,34 @@ public sealed class ChannelApiFactory : WebApplicationFactory<Program>, IAsyncLi
     public RecordingAlerts Alerts { get; } = new();
 
     public Task InitializeAsync() => _sql.StartAsync();
+
+    private string? _ownerToken, _demoToken;
+
+    /// <summary>Owner client (dev owner from the seeder, Studio workspace); the token is fetched once per factory.</summary>
+    public async Task<HttpClient> CreateOwnerClientAsync()
+    {
+        if (_ownerToken is null)
+        {
+            using var anonymous = CreateClient();
+            var response = await anonymous.PostAsJsonAsync("/api/v1/auth/login", new { email = DevSeeder.DevOwnerEmail, password = DevSeeder.DevOwnerPassword });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            _ownerToken = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+        }
+        return SqlServerApiFactory.WithBearer(CreateClient(), _ownerToken);
+    }
+
+    /// <summary>Anonymous Demo token (Demo workspace, role Demo).</summary>
+    public async Task<HttpClient> CreateDemoClientAsync()
+    {
+        if (_demoToken is null)
+        {
+            using var anonymous = CreateClient();
+            var response = await anonymous.PostAsJsonAsync("/api/v1/auth/demo", new { });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            _demoToken = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString()!;
+        }
+        return SqlServerApiFactory.WithBearer(CreateClient(), _demoToken);
+    }
 
     Task IAsyncLifetime.DisposeAsync() => _sql.DisposeAsync().AsTask();
 
@@ -379,7 +408,7 @@ public class ChannelFlowTests(ChannelApiFactory factory) : IClassFixture<Channel
     [Fact]
     public async Task Http_destination_is_validated_against_the_ssrf_guard_and_refused_in_the_demo_workspace()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateOwnerClientAsync();
 
         var privateTarget = await client.PostAsJsonAsync("/api/v1/destinations", new { name = "metadata", type = "http", config = new { url = "https://169.254.169.254/latest/meta-data/", method = "POST" } });
         Assert.Equal(HttpStatusCode.BadRequest, privateTarget.StatusCode);
@@ -397,11 +426,9 @@ public class ChannelFlowTests(ChannelApiFactory factory) : IClassFixture<Channel
         var dto = await ok.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("PUT", dto.GetProperty("config").GetProperty("method").GetString());
 
-        // Demo workspace (seeded with IsDemo = true): HTTP destinations are owner-only.
-        var demoId = await factory.WithDbAsync(db => db.Workspaces.Where(w => w.IsDemo).Select(w => w.Id).SingleAsync());
-        using var demo = new HttpRequestMessage(HttpMethod.Post, "/api/v1/destinations") { Content = JsonContent.Create(new { name = "demo-http", type = "http", config = new { url = "https://93.184.216.34/hook" } }) };
-        demo.Headers.Add("X-Workspace-Id", demoId.ToString());
-        var forbidden = await client.SendAsync(demo);
+        // Demo workspace: HTTP destinations are owner-only, and Demo tokens cannot create destinations at all (403 from the Owner policy).
+        using var demo = await factory.CreateDemoClientAsync();
+        var forbidden = await demo.PostAsJsonAsync("/api/v1/destinations", new { name = "demo-http", type = "http", config = new { url = "https://93.184.216.34/hook" } });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
 
         // The other new types validate their configs too.

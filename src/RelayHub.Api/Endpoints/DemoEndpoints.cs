@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
+using RelayHub.Api.Auth;
 using RelayHub.Api.Startup;
 using RelayHub.Core.Demo;
 using RelayHub.Core.Domain;
@@ -28,7 +29,7 @@ public static class DemoEndpoints
 
     public static IEndpointRouteBuilder MapDemoEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1/demo").WithTags("Demo").AddEndpointFilter(RequireDemoWorkspaceAsync);
+        var group = app.MapGroup("/api/v1/demo").WithTags("Demo").RequireAuthorization(AuthPolicies.Member).AddEndpointFilter(RequireDemoWorkspaceAsync);
 
         group.MapPost("/simulate", SimulateAsync).WithName("DemoSimulate")
              .WithSummary("Simulate an inbound message on instagram | facebook | telegram | email | web: a provider-shaped payload is queued exactly like a verified webhook. Demo workspace only; 20 per minute per IP.")

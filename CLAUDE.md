@@ -17,6 +17,10 @@ src/RelayHub.Core            entities, enums, IDestinationConnector, IReplyChann
 src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord, Teams, email/Resend, Telegram, HTTP, DemoSinkConnector), reply channels (Meta, Telegram, Resend),
                              Processing/Parsers (one ISourceParser per IncomingMessage.Kind), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts, ChannelOptions
 infra/cloudflare-email-worker  Email Routing → Worker → signed POST /api/v1/hooks/email (wrangler)
+src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): JWT auth (Auth/), ingest (verify + enqueue only), inbox / conversations / reply / stats / realtime negotiate, replay, Scalar docs at /docs
+src/RelayHub.Worker          Azure Functions isolated worker: ProcessIncoming (incoming queue), ProcessDelivery (deliveries queue), PoisonAlerts
+src/RelayHub.Core            entities, enums, IDestinationConnector, IReplyChannel, IRealtimeNotifier, IRelayQueues + queue message records, ApiKeys (HMAC), ReplyWindow, ChannelNames, TemplateRenderer
+src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts, SignalRRealtimeNotifier
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
 web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
@@ -33,7 +37,7 @@ scripts/smoke.sh             curl walk-through of the flow against a running API
 dotnet build RelayHub.slnx
 dotnet test RelayHub.slnx --filter "Category!=Docker"   # what CI runs
 dotnet test RelayHub.slnx                                # also the Docker/Testcontainers flow (needs Docker)
-dotnet run --project src/RelayHub.Api --urls http://localhost:5080   # then BASE=http://localhost:5080 bash scripts/smoke.sh
+dotnet run --project src/RelayHub.Api --urls http://localhost:5080   # then BASE=http://localhost:5080 bash scripts/smoke.sh (logs in as the dev owner first)
 cd src/RelayHub.Worker && func start                                 # worker against Azurite + local SQL (local.settings.json)
 dotnet ef migrations add <Name> -p src/RelayHub.Infrastructure        # dotnet-ef is a local tool (dotnet-tools.json)
 cd web && npm ci && npm run build
@@ -54,6 +58,10 @@ cd web && npm ci && npm run build
    dotnet user-secrets set "RelayHub:SeedDiscordWebhookUrl" "https://discord.com/api/webhooks/..."   # optional
    # Week 4 channels, all optional (hooks answer 503 until set): RelayHub:Meta:AppSecret, RelayHub:Meta:VerifyToken,
    # RelayHub:Telegram:WebhookSecret, RelayHub:Email:InboundSecret, RelayHub:Resend:ApiKey, RelayHub:Resend:From
+   dotnet user-secrets set "RelayHub:JwtSigningKey" "<32+ random characters>"                        # optional in Development (built-in dev key + warning)
+   dotnet user-secrets set "RelayHub:OwnerEmail" "you@example.com"                                   # optional in Development (owner@relayhub.local / relayhub-dev-owner)
+   dotnet user-secrets set "RelayHub:OwnerPassword" "<password>"
+   dotnet user-secrets set "SignalR:ConnectionString" "Endpoint=https://...;AccessKey=...;Version=1.0;"  # optional: live dashboard updates
    ```
    After `user-secrets init` or any csproj change, rebuild before `dotnet run --no-build` (the secrets id is compiled in).
 4. The seeder logs the `website-contact` API key on startup. Keys are derived from the master key, never stored.
@@ -66,7 +74,9 @@ cd web && npm ci && npm run build
 - At-least-once, made safe: events dedupe on (SourceId, ExternalId); a `DeliveryMessage` carries `AfterAttempt` and is skipped when the delivery's AttemptCount moved on (duplicate or stale retry after a replay). Accepted trade-off: a destination may very rarely see the same notification twice.
 - Replay (`POST /api/v1/deliveries/{id}/replay`) keeps the attempt history and gives exactly one more attempt; it is also the recovery for a delivery stuck in Retrying (worker crashed between SaveChanges and re-enqueue). Nothing polls SQL for stuck deliveries on purpose.
 - Never poll Azure SQL (serverless free offer must sleep). `/health` never touches the DB; `/health/ready` does.
-- Every query is workspace-scoped through EF Core global query filters (`ICurrentWorkspace`). Until JWT auth (Week 3) the workspace comes from the `X-Workspace-Id` header, default 1 = Studio. Do not remove the filters.
+- Every query is workspace-scoped through EF Core global query filters (`ICurrentWorkspace`). Do not remove the filters.
+- Auth (Week 3): HS256 JWT bearer (`RelayHub:JwtSigningKey`, ≥ 32 chars), claims `sub email role ws wsn demo`, Owner 7 days / Demo 2 hours. The ambient workspace comes ONLY from the token's `ws` claim (`UseWorkspaceFromToken` after `UseAuthentication`); the `X-Workspace-Id` header is gone and must not come back. Unauthenticated requests have no workspace (filters match nothing). Policies: `Owner` (role Owner) for configuration writes, `Member` (Owner or Demo) for everything else; hooks, `/auth/login`, `/auth/demo`, `/health*`, `/docs`, `/openapi/*` stay anonymous. Users table holds only `PasswordHasher<User>` hashes (no Identity framework); the owner comes from `RelayHub:OwnerEmail` / `OwnerPassword` through the seeder (rotating the secret re-hashes on the next startup). Demo tokens are mocked actions on the `IsDemo` workspace: `reply` → `SentDemo`, `destinations/{id}/test` → mocked, no configuration writes.
+- Realtime (Week 3): Azure SignalR Service in **serverless** mode through the Management SDK (`SignalRRealtimeNotifier`, hub `relayhub`, group `ws-{workspaceId}`, messages `eventCreated` / `deliveryUpdated` / `replySent`), configured by `SignalR:Endpoint` (Managed Identity, role SignalR Service Owner) or `SignalR:ConnectionString`; unset → `NullRealtimeNotifier` and `POST /api/v1/realtime/negotiate` answers 503 `realtime-unavailable`. Both the API and the worker push through the same class; it never throws. The dashboard must never poll on a timer (serverless SQL must sleep): live updates or a manual Refresh button.
 - Source API keys are stateless signed keys `src_{keyId}_{hmac}`; verify with constant-time compare; the key id finds the source.
 - Replies are synchronous (user is waiting), notification deliveries are asynchronous with backoff 30 s / 2 min / 10 min / 30 min / 1 h, dead-letter after 5 attempts. `DeliveryDispatcher` owns that rule; reuse it from the worker.
 - Provider hooks (`/api/v1/hooks/meta`, `/hooks/telegram/{sourceKey}`, `/hooks/email`) verify the provider's signature / secret token over the raw bytes and enqueue, without SQL — exactly like the generic hook. The worker finds the source afterwards: Meta by `Source.ExternalAccountId` (Page id / Instagram account id = `entry.id`), Telegram by the source name in the URL, email by the `to` address. Unknown source or bad payload = `Dropped` (never a throw); echoes / receipts = `Ignored`. Secrets live in `ChannelOptions` (section `RelayHub`), all optional: an unset one makes its hook answer 503.
