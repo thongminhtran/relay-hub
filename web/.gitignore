@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Re-include the documented env sample (the repo root ignores .env.*)
+!.env.example
