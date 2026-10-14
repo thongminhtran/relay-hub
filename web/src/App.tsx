@@ -10,6 +10,7 @@ import { createQueryClient } from './lib/queries'
 import { ToastProvider } from './lib/toast'
 import { ConversationsPage } from './pages/Conversations'
 import { ConversationThreadPage } from './pages/ConversationThread'
+import { DemoPage } from './pages/Demo'
 import { EventDetailPage } from './pages/EventDetail'
 import { InboxPage } from './pages/Inbox'
 import { LandingPage } from './pages/Landing'
@@ -47,6 +48,7 @@ export default function App() {
                     <Route path="conversations" element={<ConversationsPage />} />
                     <Route path="conversations/:id" element={<ConversationThreadPage />} />
                     <Route path="stats" element={<StatsPage />} />
+                    <Route path="demo" element={<DemoPage />} />
                     <Route path="settings" element={<SettingsPage />}>
                       <Route path="sources" element={<SourcesTab />} />
                       <Route path="destinations" element={<DestinationsTab />} />

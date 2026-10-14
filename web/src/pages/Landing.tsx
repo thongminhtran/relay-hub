@@ -23,13 +23,13 @@ const HOW = [
   {
     k: 'Step 1 · Ingest',
     title: 'Signed webhooks, answered in milliseconds',
-    text: 'Meta, Telegram, the email worker and your website form post to one API. Each request is verified (HMAC, bot secret or API key) and dropped on a Storage Queue — the hot path never touches SQL.',
+    text: 'Meta, Telegram, the email worker and your website form post to one API. Each request is verified (HMAC, bot secret or API key) and dropped on a Storage Queue — the hot path never touches SQL. In the demo, one click simulates a correctly signed Instagram, Facebook, Telegram, email or website-form webhook through that same path.',
     tags: ['X-Hub-Signature-256', 'X-Api-Key', 'Storage Queues', '202 Accepted'],
   },
   {
     k: 'Step 2 · Process',
     title: 'A worker that survives duplicates and outages',
-    text: 'Azure Functions parse the payload, dedupe on (source, external id), store the event and the conversation, then create one delivery per route. Failed deliveries retry with backoff and dead-letter after five attempts.',
+    text: 'Azure Functions parse the payload, dedupe on (source, external id), store the event and the conversation, then create one delivery per route. Failed deliveries retry with backoff and dead-letter after five attempts. The demo has a "Simulate failure" switch: flip it and watch a delivery retry at 2, 4, 8, 16 and 32 s, dead-letter, then replay it.',
     tags: ['Azure Functions', 'EF Core', 'idempotent', '30 s → 1 h backoff'],
   },
   {
@@ -81,7 +81,7 @@ export function LandingPage() {
               Owner login
             </Link>
           </div>
-          <p className="hero-note">No sign-up · nothing to install · the demo workspace uses synthetic data and mocked destinations</p>
+          <p className="hero-note">No sign-up · nothing to install · simulate messages and outages in a sandbox workspace with mocked destinations</p>
         </div>
         <div className="live-card" role="img" aria-label="Example inbox receiving messages from several channels">
           <div className="live-head">
@@ -168,7 +168,7 @@ export function LandingPage() {
       <section className="cta-band">
         <div>
           <h2>See the whole flow in under five minutes</h2>
-          <p>Open the demo inbox, reply to a simulated DM, then replay a dead-lettered delivery.</p>
+          <p>Simulate an Instagram DM, reply to it, switch on the failure mode, then replay the dead letter.</p>
         </div>
         <Link to={demoHref} className="btn btn-primary btn-lg">
           Try the live demo

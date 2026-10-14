@@ -202,7 +202,7 @@ function Thread({ convo }: { convo: ConversationDetail }) {
           />
           <div className="composer-foot">
             <span className="note" id="reply-note">
-              <ReplyCountdown closesAt={convo.reply.windowClosesAt} />
+              <ReplyCountdown key={convo.reply.windowClosesAt ?? 'none'} closesAt={convo.reply.windowClosesAt} />
               {closedReason ? (
                 <span className="bad-c">{closedReason}</span>
               ) : convo.reply.windowClosesAt ? (

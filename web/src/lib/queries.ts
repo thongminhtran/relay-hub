@@ -11,6 +11,10 @@ import {
   type CreateSourceResponse,
   type DeliveryDetail,
   type DeliveryStatusFilter,
+  type DemoFailureMode,
+  type DemoResetResponse,
+  type DemoSimulateRequest,
+  type DemoSimulateResponse,
   type Destination,
   type DestinationTestResult,
   type Direction,
@@ -129,6 +133,7 @@ export const keys = {
   sources: ['sources'] as const,
   destinations: ['destinations'] as const,
   routes: ['routes'] as const,
+  demoFailureMode: ['demo', 'failure-mode'] as const,
 }
 
 export const fetchers = {
@@ -141,6 +146,7 @@ export const fetchers = {
   sources: (signal?: AbortSignal) => http.get<Source[]>('/api/v1/sources', { signal }),
   destinations: (signal?: AbortSignal) => http.get<Destination[]>('/api/v1/destinations', { signal }),
   routes: (signal?: AbortSignal) => http.get<Route[]>('/api/v1/routes', { signal }),
+  demoFailureMode: (signal?: AbortSignal) => http.get<DemoFailureMode>('/api/v1/demo/failure-mode', { signal }),
 }
 
 export const mutations = {
@@ -160,4 +166,8 @@ export const mutations = {
   createRoute: (body: CreateRouteRequest) => http.post<Route>('/api/v1/routes', body),
   updateRoute: (id: number, body: UpdateRouteRequest) => http.put<Route>(`/api/v1/routes/${id}`, body),
   deleteRoute: (id: number) => http.delete(`/api/v1/routes/${id}`),
+
+  demoSimulate: (body: DemoSimulateRequest) => http.post<DemoSimulateResponse>('/api/v1/demo/simulate', body),
+  demoSetFailureMode: (enabled: boolean) => http.put<DemoFailureMode>('/api/v1/demo/failure-mode', { enabled }),
+  demoReset: () => http.post<DemoResetResponse>('/api/v1/demo/reset'),
 }

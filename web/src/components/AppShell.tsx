@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { API_BASE } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { initials } from '../lib/format'
-import { IconChart, IconChat, IconDocs, IconInbox, IconLogout, IconSettings, Logo } from './Icons'
+import { IconBolt, IconChart, IconChat, IconDocs, IconInbox, IconLogout, IconSettings, Logo } from './Icons'
 import { ThemeToggle } from './ThemeToggle'
 
 interface NavItemDef {
@@ -20,6 +20,8 @@ const NAV: NavItemDef[] = [
   { to: '/app/stats', label: 'Stats', icon: IconChart },
   { to: '/app/settings', label: 'Settings', icon: IconSettings },
 ]
+/** Only for Demo-workspace users (the API answers 403 demo-only for everyone else). */
+const DEMO_NAV: NavItemDef = { to: '/app/demo', label: 'Demo', icon: IconBolt }
 
 function isSection(pathname: string, item: NavItemDef): boolean {
   return [item.to, ...(item.also ?? [])].some((p) => pathname === p || pathname.startsWith(p + '/'))
@@ -46,6 +48,7 @@ export function AppShell() {
   }
 
   const roleLine = user ? `${user.role}${user.isDemo ? ' · demo workspace' : ''}` : ''
+  const nav = user?.isDemo ? [...NAV, DEMO_NAV] : NAV
 
   return (
     <div className="app">
@@ -59,7 +62,7 @@ export function AppShell() {
           <span>{user?.isDemo ? <span className="badge">Demo</span> : 'Workspace'}</span>
         </div>
         <nav className="nav" aria-label="Main">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavItem key={item.to} item={item} pathname={pathname} />
           ))}
           <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">
@@ -105,7 +108,7 @@ export function AppShell() {
       </main>
 
       <nav className="tabbar" aria-label="Main">
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <NavItem key={item.to} item={item} pathname={pathname} />
         ))}
       </nav>

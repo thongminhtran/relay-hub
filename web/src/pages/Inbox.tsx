@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChannelGlyph, DirectionTag, StatusPill } from '../components/Chips'
+import { DemoPanel } from '../components/DemoPanel'
 import { IconInbox, IconSearch } from '../components/Icons'
 import { LiveIndicator } from '../components/LiveIndicator'
 import { EmptyState, ErrorState, Pagination, SkeletonRows, TimeAgo } from '../components/Primitives'
 import { useDebounce } from '../hooks/useDebounce'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useEvents } from '../hooks/useData'
+import { useAuth } from '../lib/auth'
 import { CHANNEL_META, STATUS_LABEL } from '../lib/labels'
 import { eventFiltersFromParams, eventFiltersToParams, type EventFilters } from '../lib/queries'
 import { CHANNELS, type DeliveryStatusFilter, type Direction, type EventListItem } from '../lib/types'
@@ -21,6 +23,7 @@ const STATUS_FILTERS: { value: DeliveryStatusFilter; label: string }[] = [
 
 export function InboxPage() {
   useDocumentTitle('Inbox')
+  const { isDemo } = useAuth()
   const [params, setParams] = useSearchParams()
   const urlFilters = useMemo(() => eventFiltersFromParams(params), [params])
 
@@ -65,6 +68,8 @@ export function InboxPage() {
           <LiveIndicator />
         </div>
       </header>
+
+      {isDemo ? <DemoPanel collapsible forceOpen={params.get('demo') === 'open'} /> : null}
 
       <div className="toolbar" role="search">
         <div className="search">

@@ -1,12 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChannelGlyph, DirectionTag, StatusPill } from '../components/Chips'
 import { IconBack, IconChat, IconReplay } from '../components/Icons'
+import { LiveIndicator } from '../components/LiveIndicator'
+import { NextAttempt } from '../components/NextAttempt'
 import { CopyButton, EmptyState, ErrorState, JsonView, Skeleton, TimeAgo } from '../components/Primitives'
 import { useEvent } from '../hooks/useData'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { isApiError } from '../lib/api'
-import { formatFull, formatRelative, formatTime, formatUntil } from '../lib/format'
+import { useAuth } from '../lib/auth'
+import { formatFull, formatRelative, formatTime } from '../lib/format'
 import { channelLabel } from '../lib/labels'
 import { keys, mutations } from '../lib/queries'
 import { useToast } from '../lib/toast'
@@ -50,6 +54,7 @@ export function EventDetailPage() {
 }
 
 function EventView({ ev }: { ev: EventDetail }) {
+  const { isDemo } = useAuth()
   const who = ev.direction === 'out' ? 'You' : ev.from.name || ev.from.handle || 'Unknown sender'
   return (
     <>
@@ -69,6 +74,7 @@ function EventView({ ev }: { ev: EventDetail }) {
             </div>
           </div>
           <div className="d-meta">
+            <LiveIndicator />
             <span className="mono muted">#{ev.id}</span>
             {ev.conversationId ? (
               <Link to={`/app/conversations/${ev.conversationId}`} className="btn btn-sm">
@@ -94,7 +100,10 @@ function EventView({ ev }: { ev: EventDetail }) {
           <div>
             <h2 className="h2">Delivery timeline</h2>
             <p className="desc" style={{ fontSize: 13.5 }}>
-              One card per route. Retries back off 30 s → 2 min → 10 min → 30 min → 1 h, then the delivery is dead-lettered and kept for replay.
+              One card per route.{' '}
+              {isDemo
+                ? 'Demo retry profile: 2 s → 4 s → 8 s → 16 s → 32 s, then the delivery is dead-lettered and kept for replay (production waits 30 s → 1 h).'
+                : 'Retries back off 30 s → 2 min → 10 min → 30 min → 1 h, then the delivery is dead-lettered and kept for replay.'}
             </p>
           </div>
         </div>
@@ -113,6 +122,8 @@ function EventView({ ev }: { ev: EventDetail }) {
 function DeliveryCard({ delivery: d, eventId }: { delivery: DeliveryDetail; eventId: number }) {
   const toast = useToast()
   const queryClient = useQueryClient()
+  // One-shot refetch when the retry schedule elapses (NextAttempt fires it once per nextAttemptAt).
+  const refetchEvent = useCallback(() => void queryClient.invalidateQueries({ queryKey: keys.event(eventId) }), [queryClient, eventId])
   const replay = useMutation({
     mutationFn: () => mutations.replay(d.id),
     onSuccess: () => {
@@ -151,9 +162,8 @@ function DeliveryCard({ delivery: d, eventId }: { delivery: DeliveryDetail; even
           Attempts <b className="num">{d.attemptCount}</b>
         </span>
         {d.status === 'Retrying' && d.nextAttemptAt ? (
-          <span>
-            Next attempt{' '}
-            <b title={formatFull(d.nextAttemptAt)}>{formatUntil(d.nextAttemptAt)}</b>
+          <span className="row-flex" style={{ gap: 6 }}>
+            Next attempt <NextAttempt key={d.nextAttemptAt} nextAttemptAt={d.nextAttemptAt} onElapsed={refetchEvent} />
           </span>
         ) : null}
         {d.status === 'Pending' ? <span>Queued — waiting for the worker</span> : null}

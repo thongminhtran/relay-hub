@@ -2,8 +2,8 @@
  * Request handlers for the dev mock. Implements every endpoint in the Week 3/4 contract against ./data.ts,
  * including the Problem Details the dashboard must handle (401/403/404/409/501/503).
  */
-import type { ConversationDetail, ConversationListItem, EventDetail, EventListItem, ReplyWindow, Source, StatsSummary, User } from '../lib/types'
-import { createMockDb, hex, type MockDb, type MockEvent, type MockUser } from './data'
+import { DEMO_CHANNELS, DEMO_MAX_TEXT, type Channel, type ConversationDetail, type ConversationListItem, type EventDetail, type EventListItem, type ReplyWindow, type Source, type StatsSummary, type User } from '../lib/types'
+import { createMockDb, DEMO_DEFAULT_TEXT, DEMO_SENDERS, hex, reseedWorkspace, storeSimulated, type MockDb, type MockEvent, type MockUser } from './data'
 
 export interface MockRequest {
   method: string
@@ -140,6 +140,8 @@ export class MockApi {
   private readonly routes: RouteDef[] = []
   /** The wake-up screen is only visible when the API is "cold": the first readiness probes fail on purpose. */
   private coldProbesLeft = 2
+  /** Mirrors the 20/min simulate rate limit (per page load, never resets — good enough to show the 429 toast). */
+  private simulateCalls = 0
 
   constructor(db = createMockDb()) {
     this.db = db
@@ -412,6 +414,45 @@ export class MockApi {
         series,
       }
       return ok(summary)
+    })
+
+    // demo controls — Demo-workspace tokens only (403 demo-only otherwise), mirroring DemoEndpoints.cs
+    const demoOnly = (ctx: { db: MockDb; user: MockUser | null }) =>
+      isDemoWs(ctx) ? null : problem(403, 'Demo workspace only', 'The demo endpoints only work in the public demo workspace.', 'https://relayhub.dev/problems/demo-only')
+    this.on('POST', '/api/v1/demo/simulate', (req, _p, ctx) => {
+      const denied = demoOnly(ctx)
+      if (denied) return denied
+      if (++this.simulateCalls > 20) return problem(429, 'Too many requests', 'Simulate is limited to 20 per minute per IP.')
+      const body = (req.body ?? {}) as { channel?: string; text?: string; senderName?: string }
+      const channel = (body.channel ?? '').trim().toLowerCase()
+      if (!(DEMO_CHANNELS as readonly string[]).includes(channel)) return validation('channel', `Unknown channel. Allowed: ${DEMO_CHANNELS.join(', ')}`)
+      const text = (body.text ?? '').trim()
+      if (text.length > DEMO_MAX_TEXT) return validation('text', `Text must be at most ${DEMO_MAX_TEXT} characters`)
+      if ((body.senderName ?? '').length > 100) return validation('senderName', 'Sender name must be at most 100 characters')
+      const pool = DEMO_SENDERS[this.simulateCalls % DEMO_SENDERS.length]
+      const sender = body.senderName?.trim() ? { ...pool, name: body.senderName.trim() } : pool
+      const finalText = text || DEMO_DEFAULT_TEXT[channel as Channel]
+      const correlationId = hex(32)
+      // the "worker" stores it ~2 s later, like the real pipeline without SignalR
+      setTimeout(() => storeSimulated(ctx.db, ws(ctx), channel as Channel, finalText, sender, correlationId, Date.now()), 2000)
+      return ok({ correlationId, channel, sender: { name: sender.name, handle: sender.handle, email: sender.email }, text: finalText, hint: 'Watch the inbox — the worker stores it in a few seconds.' }, 202)
+    })
+    this.on('GET', '/api/v1/demo/failure-mode', (_req, _p, ctx) => demoOnly(ctx) ?? ok({ enabled: ctx.db.failureMode }))
+    this.on('PUT', '/api/v1/demo/failure-mode', (req, _p, ctx) => {
+      const denied = demoOnly(ctx)
+      if (denied) return denied
+      const enabled = Boolean((req.body as { enabled?: boolean } | null)?.enabled)
+      ctx.db.failureMode = enabled
+      for (const d of ctx.db.destinations) if (d.workspaceId === ws(ctx) && d.name.includes('Flaky')) d.config = { ...d.config, failing: enabled }
+      return ok({ enabled })
+    })
+    this.on('POST', '/api/v1/demo/reset', async (_req, _p, ctx) => {
+      const denied = demoOnly(ctx)
+      if (denied) return denied
+      await new Promise((r) => setTimeout(r, 500))
+      ctx.db.failureMode = false
+      const summary = reseedWorkspace(ctx.db, ws(ctx))
+      return ok({ status: 'reset', conversations: summary.conversations, events: summary.events, failureMode: false })
     })
 
     // sources
