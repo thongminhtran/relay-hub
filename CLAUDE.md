@@ -17,7 +17,7 @@ src/RelayHub.Core            entities, enums, IDestinationConnector, IRelayQueue
 src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
-web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
+web/                         Vite + React 19 + TypeScript dashboard: landing, wake-up, inbox, conversations + reply, event detail, stats, settings; react-query + SignalR (no timer polling); dev mock API under src/mock (?mock=1)
 infra/                       Bicep: App Service F1 (API), Functions Flex Consumption (worker), SQL free offer, Storage queues, Key Vault, App Insights
 scripts/smoke.sh             curl walk-through of the flow against a running API (+ Azurite + worker for the stored event)
 ```
@@ -31,7 +31,10 @@ dotnet test RelayHub.slnx                                # also the Docker/Testc
 dotnet run --project src/RelayHub.Api --urls http://localhost:5080   # then BASE=http://localhost:5080 bash scripts/smoke.sh
 cd src/RelayHub.Worker && func start                                 # worker against Azurite + local SQL (local.settings.json)
 dotnet ef migrations add <Name> -p src/RelayHub.Infrastructure        # dotnet-ef is a local tool (dotnet-tools.json)
-cd web && npm ci && npm run build
+cd web && npm ci && npm run build                        # dashboard: tsc -b + vite build → web/dist
+cd web && npm run dev                                   # dashboard dev server on :5173 → API on :5080 (VITE_API_BASE_URL)
+cd web && npm run dev -- --open '/?mock=1'              # dashboard against the in-browser mock API (no backend)
+cd web && npm test && npm run lint                      # vitest + oxlint
 ```
 
 ## Local setup (per machine)

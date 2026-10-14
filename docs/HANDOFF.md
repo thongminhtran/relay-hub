@@ -1,6 +1,6 @@
 # RelayHub — hand-off / status
 
-Last updated: 2026-10-13 (Calgary, on the Mac). Keep this file current at the end of every working session.
+Last updated: 2026-10-14 (Calgary, on the Mac). Keep this file current at the end of every working session.
 
 ## Where we are
 
@@ -37,6 +37,64 @@ Week 1 — done (2026-10-11, Windows PC):
 - `/health` (no DB), `/health/ready` (DB), Scalar docs at `/docs`, correlation id on every response.
 - API live at https://app-relayhub-prod-api-s4w2qp.azurewebsites.net (`/health`, `/docs`), deployed by `.github/workflows/deploy.yml` (OIDC login → Bicep → publish → EF migration bundle through a temporary SQL firewall rule → App Service → `/health` smoke). Every push to `main` that touches `src/**` or `infra/**` redeploys.
 - Plan v2 + regenerated architecture diagram; clickable mockup in `mockup/`.
+
+## Week 3 — dashboard (`web/`, branch `w3-web`, 2026-10-14)
+
+React 19 + TypeScript + Vite 8 SPA in `web/`, built against the Week 3/4 shared contract (JWT auth, inbox/conversations/reply, stats,
+SignalR negotiate, configuration API). Dependencies kept to `react-router-dom` 7, `@tanstack/react-query` 5, `@microsoft/signalr`;
+tests with `vitest` + Testing Library; styling is one `src/styles.css` with the mockup's CSS variables (light/dark via
+`prefers-color-scheme` + a toggle persisted in `localStorage["relayhub.theme"]`).
+
+**Routes**
+
+| Route | Page | Notes |
+|---|---|---|
+| `/` | Landing | static: pitch, hero (Try the live demo → `/app?demo=1`, Owner login), 3-step "how it works", `public/architecture.png`, tech badges, GitHub + `${API}/docs` links |
+| `/login` | Owner login | email + password → `POST /api/v1/auth/login`; "Try the demo instead" → `POST /api/v1/auth/demo` |
+| `/app` | Wake-up | polls `GET /health` then `GET /health/ready` with backoff 1→2→4→8→10 s for at most 90 s (the **only** polling in the app), then redirects to `/app/inbox`; with `?demo=1` it performs the demo login first; without a token it shows demo + owner buttons |
+| `/app/inbox` | Inbox | `GET /api/v1/events` with URL-backed filters `channel`, `status`, `direction`, `q` (300 ms debounce), `page`; per-delivery status chips |
+| `/app/events/:id` | Event detail | message, correlation id + copy, collapsible raw payload, delivery timeline with attempts, **Replay** for Retrying / DeadLettered (409 handled) |
+| `/app/conversations` | Conversations | `GET /api/v1/conversations` with channel + search filters |
+| `/app/conversations/:id` | Thread | bubbles in/out, reply box (max 2000), **24 h countdown** from `reply.windowClosesAt` (amber under 1 h, disabled + reason when closed), optimistic "Sending…" → "Sent" / "Sent (demo)", Problem Details toasts for 409/501/502 |
+| `/app/stats` | Stats | today tiles, 7-day success rate, by-channel bars, inline-SVG 7-day chart (legend, hover tooltip, table view) |
+| `/app/settings/{sources,destinations,routes}` | Settings | full CRUD; API key shown once after create/rotate; per-type webhook URL; destination "Send test"; route template editor with placeholder legend + live preview; Demo users see everything read-only |
+
+**Code map**: `src/lib/api.ts` (fetch wrapper: bearer injection, Problem Details → `ApiError {status,type,title,detail}`, 401 → logout +
+`/login`), `src/lib/auth.tsx` (token in memory + `localStorage["relayhub.token"]`, JWT claims decoded for instant hydration, confirmed by
+`GET /api/v1/auth/me`), `src/lib/realtime.ts` (negotiate → `HubConnectionBuilder` with automatic reconnect; state + `on(event)`),
+`src/hooks/useRealtime.tsx` (hub messages → react-query invalidation / cache patches), `src/lib/queries.ts` (query keys, fetchers,
+mutations, URL filter parsing), `src/components/*` (chips, primitives, shell, chart), `src/pages/*`, `src/mock/*` (dev mock API).
+
+**No timer polling anywhere** except the wake-up screen: the `QueryClient` has `refetchInterval: false` and window-focus/reconnect refetch
+off; data changes arrive through SignalR (`eventCreated` → invalidate events/conversations/stats, `deliveryUpdated` → patch the row +
+invalidate the event detail, `replySent` → append to the open thread). When negotiate answers 503 or the connection drops, the header
+shows a grey "Live updates unavailable — Refresh" button; refresh = invalidate all queries + one reconnect attempt.
+
+**Environment variables** (Vite, build time; see `web/.env.example`):
+- `VITE_API_BASE_URL` — API origin without trailing slash, default `http://localhost:5080`. Production builds must set it to
+  `https://app-relayhub-prod-api-s4w2qp.azurewebsites.net` (the SWA deploy workflow on `w3-infra` passes it).
+- `VITE_MOCK_API=1` — bake the in-browser mock API in (dev only). At runtime, `?mock=1` on any URL turns it on for the tab
+  (`sessionStorage["relayhub.mock"]`), `?mock=0` turns it off.
+
+**Run it**
+```bash
+cd web && npm install
+npm run dev                               # http://localhost:5173 → API on http://localhost:5080 (dotnet run --project src/RelayHub.Api --urls http://localhost:5080)
+npm run dev -- --open '/?mock=1'          # no backend: in-memory mock covering every contract endpoint
+npm test && npm run lint && npm run build # 30 tests (reply-window countdown, auth store, API error mapping, inbox filters, config helpers)
+```
+The mock (`src/mock/`) is a `fetch` interceptor for `VITE_API_BASE_URL` only: two workspaces (owner `owner@relayhub.local` /
+`relayhub-dev-owner` on "Studio", and the demo workspace "Prairie Bánh Mì"), realistic events with Delivered / Retrying / DeadLettered
+deliveries, Meta 24 h windows (one expired), replies (`SentDemo`; type "fail" to get a 502), replay (completes ~2.5 s later → press
+Refresh), and `POST /realtime/negotiate` → 503 so the manual-refresh path is what you see. Data resets on reload.
+
+**Static Web Apps**: `web/public/staticwebapp.config.json` has the SPA `navigationFallback` (excluding `/assets/*` and static files) and
+security `globalHeaders` (CSP allows Google Fonts, `connect-src https: wss:` for the API + SignalR).
+
+Not done / follow-ups: SignalR is untested against a real hub (the API branch was being built in parallel — only the contract and the
+mock were available); the demo simulators / "simulate failure" switch (Week 5) are not in the UI yet; Turnstile token is not collected
+on the demo login (the contract makes it optional). The mockup's conversation/reply screen was implemented directly in React rather than
+added to `mockup/relayhub-mockup.html`.
 
 ## Next steps, in order
 
