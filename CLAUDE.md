@@ -11,10 +11,10 @@ The plan is the source of truth: `docs/plan-src/plan.md` (readable) → `docs/Re
 ## Layout
 
 ```
-src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest (verify + enqueue only), REST API, replay, Scalar docs at /docs
+src/RelayHub.Api             ASP.NET Core minimal APIs (.NET 10): ingest (verify + enqueue only), REST API, replay, demo endpoints (/api/v1/demo), Scalar docs at /docs; Startup/DevSeeder + DemoSeeder
 src/RelayHub.Worker          Azure Functions isolated worker: ProcessIncoming (incoming queue), ProcessDelivery (deliveries queue), PoisonAlerts
-src/RelayHub.Core            entities, enums, IDestinationConnector, IRelayQueues + queue message records, ApiKeys (HMAC), TemplateRenderer
-src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts
+src/RelayHub.Core            entities, enums, IDestinationConnector, IRelayQueues + queue message records, ApiKeys (HMAC), TemplateRenderer, Demo/ (catalog, fake customers, payload builders)
+src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord, DemoSinkConnector), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
 web/                         Vite + React + TypeScript dashboard (default scaffold until Week 3)
@@ -64,6 +64,7 @@ cd web && npm ci && npm run build
 - Replies are synchronous (user is waiting), notification deliveries are asynchronous with backoff 30 s / 2 min / 10 min / 30 min / 1 h, dead-letter after 5 attempts. `DeliveryDispatcher` owns that rule; reuse it from the worker.
 - Discord / Telegram / email are "borrowed" push notifications; there is no mobile app.
 - Meta channels: the app stays in development mode (only role holders can message it). The public demo uses simulators, never live Meta. Real-usage metrics come from the website form, email and Telegram.
+- Demo workspace (`Workspace.IsDemo`): deliveries and "send test" go through `DemoSinkConnector` (`DeliveryDispatcher` `mock: true`), never to real channels; the sink is not an `IDestinationConnector`, so it can never be picked by type for a real workspace. `"failing": true` on a destination config makes it answer a retryable 503 (the failure switch). Sample data is seeded once (`DemoSeeder`, only when the workspace has zero events) and capped at 500 events (`POST /api/v1/demo/simulate` trims the oldest 100 first); `POST /api/v1/demo/reset` restores it. The demo endpoints answer 403 `demo-only` for any other workspace.
 - Resume and README metrics must be real numbers. Keep a build journal of real bugs in `docs/` for interview stories.
 - Secrets and webhook URLs never go into the repo or into API responses (configs are masked). Azure: Key Vault references + system-assigned managed identities for the API and the worker; the worker's host storage and both apps' queue access are identity-based (`AzureWebJobsStorage__accountName`, `Storage:QueueServiceUri` + DefaultAzureCredential). SQL still uses SQL auth through Key Vault (Entra-only auth is a later step).
 - Trace context travels in the queue message (`TraceParent`); each worker function starts an Activity with that parent. OpenTelemetry → Application Insights in both apps (API: Azure Monitor distro; worker: Functions OpenTelemetry + Azure Monitor exporter), enabled only when `APPLICATIONINSIGHTS_CONNECTION_STRING` is set.
