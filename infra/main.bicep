@@ -388,6 +388,8 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
       http20Enabled: true
       appSettings: concat([
         { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
+        // App Service terminates TLS in front of Kestrel: without this every client shares the front-end IP and the per-IP rate limits would be global.
+        { name: 'ASPNETCORE_FORWARDEDHEADERS_ENABLED', value: 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
         { name: 'RelayHub__ApiKeyMasterKey', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretMasterKey.name})' }
