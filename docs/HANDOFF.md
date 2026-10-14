@@ -176,6 +176,8 @@ Week 1 — done (2026-10-11, Windows PC):
 
 ## Week 3 — dashboard (`web/`, branch `w3-web`, 2026-10-14)
 
+Week 5 additions (branch `w5-web-demo`, same day): `DemoPanel` on the inbox (collapsible; `?demo=open` forces it open — the landing's "Try the live demo" lands there) and the page `/app/demo` with a 4-step walk-through; five "Simulate a message" buttons, "Send your own", the "Simulate failure" switch and "Reset demo data" (confirm) — all only for Demo tokens. **Documented exception to "no polling"**: after a simulate the inbox query is invalidated exactly twice (4 s and 10 s later), and a Retrying delivery's `nextAttemptAt` countdown invalidates that event once, 3 s after the deadline (the worker records the retry 0.2–2 s late) — one-shot follow-ups to the user's own action, never a timer loop. Without SignalR the header Refresh button is the only other way to refresh. `?mock=1` also mocks `/api/v1/demo/*` (429 after 20 calls, retry chain 2/4/8/16/32 s). Verified end to end against the real local API + worker on 2026-10-14 (10 steps, no contract mismatch).
+
 React 19 + TypeScript + Vite 8 SPA in `web/`, built against the Week 3/4 shared contract (JWT auth, inbox/conversations/reply, stats,
 SignalR negotiate, configuration API). Dependencies kept to `react-router-dom` 7, `@tanstack/react-query` 5, `@microsoft/signalr`;
 tests with `vitest` + Testing Library; styling is one `src/styles.css` with the mockup's CSS variables (light/dark via

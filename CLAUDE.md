@@ -23,7 +23,7 @@ src/RelayHub.Core            entities, enums, IDestinationConnector, IReplyChann
 src/RelayHub.Infrastructure  EF Core DbContext + migrations, StorageQueues, connectors (Discord), DeliveryDispatcher, IncomingProcessor, DeliveryProcessor, DiscordOpsAlerts, SignalRRealtimeNotifier
 tests/RelayHub.UnitTests     xUnit
 tests/RelayHub.IntegrationTests  WebApplicationFactory; Testcontainers (SQL Server) tests carry [Trait("Category","Docker")]
-web/                         Vite + React 19 + TypeScript dashboard: landing, wake-up, inbox, conversations + reply, event detail, stats, settings; react-query + SignalR (no timer polling); dev mock API under src/mock (?mock=1)
+web/                         Vite + React 19 + TypeScript dashboard: landing, wake-up, inbox (+ demo panel), conversations + reply, event detail, stats, settings, /app/demo; react-query + SignalR client; src/mock = offline API (?mock=1)
 infra/                       Bicep: App Service F1 (API), Functions Flex Consumption (worker), SQL free offer, Storage queues, Key Vault, App Insights,
                              Azure SignalR Service (Free_F1, serverless), Static Web App (dashboard); README has the GitHub-secret table
 scripts/smoke.sh             curl walk-through of the flow against a running API (+ Azurite + worker for the stored event)
