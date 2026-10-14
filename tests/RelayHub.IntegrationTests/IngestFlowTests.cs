@@ -1,109 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using RelayHub.Core.Abstractions;
-using RelayHub.Core.Domain;
-using RelayHub.Core.Messaging;
 using RelayHub.Infrastructure.Processing;
-using Testcontainers.MsSql;
 
 namespace RelayHub.IntegrationTests;
 
-/// <summary>Fake Discord: records what would have been posted, and can fail on demand to exercise retry bookkeeping.</summary>
-public sealed class RecordingConnector : IDestinationConnector
-{
-    public List<(string Destination, string Text)> Sent { get; } = [];
-
-    /// <summary>While non-zero, every send fails with this HTTP status (429/5xx = retryable, 4xx = not).</summary>
-    public int FailWithStatus { get; set; }
-
-    public DestinationType Type => DestinationType.Discord;
-
-    public Task<DeliveryResult> SendAsync(Destination destination, string text, Event evt, CancellationToken ct)
-    {
-        if (FailWithStatus != 0)
-            return Task.FromResult(new DeliveryResult(false, FailWithStatus, $"{FailWithStatus} simulated failure", Retryable: FailWithStatus == 429 || FailWithStatus >= 500));
-        Sent.Add((destination.Name, text));
-        return Task.FromResult(DeliveryResult.Ok(204));
-    }
-}
-
-/// <summary>Stand-in for Storage Queues: messages pile up here until the test "runs the worker".</summary>
-public sealed class InMemoryQueues : IRelayQueues
-{
-    public Queue<IncomingMessage> Incoming { get; } = new();
-    public Queue<(DeliveryMessage Message, TimeSpan? Delay)> Deliveries { get; } = new();
-
-    public Task EnqueueIncomingAsync(IncomingMessage message, CancellationToken ct) { Incoming.Enqueue(message); return Task.CompletedTask; }
-
-    public Task EnqueueDeliveryAsync(DeliveryMessage message, TimeSpan? visibilityDelay, CancellationToken ct) { Deliveries.Enqueue((message, visibilityDelay)); return Task.CompletedTask; }
-}
-
-public sealed class RecordingAlerts : IOpsAlerts
-{
-    public List<(string Title, string Detail)> Alerts { get; } = [];
-
-    public Task NotifyAsync(string title, string detail, CancellationToken ct) { Alerts.Add((title, detail)); return Task.CompletedTask; }
-}
-
-/// <summary>Real API + real SQL Server in Docker (Testcontainers). Queues, connectors and alerts are faked; the worker's processors are the real ones.</summary>
-public sealed class SqlServerApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
-{
-    private readonly MsSqlContainer _sql = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
-
-    public RecordingConnector Connector { get; } = new();
-    public InMemoryQueues Queues { get; } = new();
-    public RecordingAlerts Alerts { get; } = new();
-
-    public Task InitializeAsync() => _sql.StartAsync();
-
-    Task IAsyncLifetime.DisposeAsync() => _sql.DisposeAsync().AsTask();
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        builder.UseSetting("ConnectionStrings:RelayHub", _sql.GetConnectionString());
-        builder.UseSetting("RelayHub:ApiKeyMasterKey", "integration-test-master-key");
-        builder.UseSetting("RelayHub:MigrateOnStartup", "true");
-        builder.UseSetting("RelayHub:SeedOnStartup", "true");
-        builder.ConfigureServices(services =>
-        {
-            services.RemoveAll<IDestinationConnector>();
-            services.AddSingleton<IDestinationConnector>(Connector);
-            services.RemoveAll<IRelayQueues>();
-            services.AddSingleton<IRelayQueues>(Queues);
-            services.RemoveAll<IOpsAlerts>();
-            services.AddSingleton<IOpsAlerts>(Alerts);
-        });
-    }
-
-    /// <summary>What the Functions worker would do: drain both queues, one scope per message, ignoring visibility delays.</summary>
-    public async Task<(List<IncomingOutcome> Incoming, List<DeliveryOutcome> Deliveries)> RunWorkerAsync()
-    {
-        var incoming = new List<IncomingOutcome>();
-        var deliveries = new List<DeliveryOutcome>();
-        while (Queues.Incoming.Count > 0 || Queues.Deliveries.Count > 0)
-        {
-            while (Queues.Incoming.TryDequeue(out var msg))
-            {
-                using var scope = Services.CreateScope();
-                incoming.Add(await scope.ServiceProvider.GetRequiredService<IncomingProcessor>().ProcessAsync(msg, CancellationToken.None));
-            }
-            while (Queues.Deliveries.TryDequeue(out var item))
-            {
-                using var scope = Services.CreateScope();
-                deliveries.Add(await scope.ServiceProvider.GetRequiredService<DeliveryProcessor>().ProcessAsync(item.Message, CancellationToken.None));
-            }
-        }
-        return (incoming, deliveries);
-    }
-}
-
 [Trait("Category", "Docker")]
-public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlServerApiFactory>
+[Collection(SqlServerCollection.Name)]
+public class IngestFlowTests(SqlServerApiFactory factory)
 {
     private static HttpRequestMessage Ingest(string sourceKey, string apiKey, object body, string? idempotencyKey = null)
     {
@@ -139,9 +44,11 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
     [Fact]
     public async Task Form_message_is_queued_stored_routed_delivered_and_deduplicated()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateOwnerClientAsync();
         var (apiKey, _, _) = await ConfigureAsync(client, "contact-form");
         factory.Connector.Sent.Clear();
+        factory.Notifier.EventsCreated.Clear();
+        factory.Notifier.DeliveriesUpdated.Clear();
 
         // Ingest answers 202 "queued" without touching SQL: nothing is stored yet, the message sits on the incoming queue.
         var accepted = await client.SendAsync(Ingest("contact-form", apiKey, new { name = "Anna", email = "anna@example.com", message = "Do you build websites?" }, "form-0001"));
@@ -160,6 +67,12 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
         Assert.Single(factory.Connector.Sent);
         Assert.Equal(("Discord for contact-form", "Anna: Do you build websites?"), factory.Connector.Sent[0]);
 
+        // Dashboards were told about the new event (with its source name) and the delivery result.
+        var created = Assert.Single(factory.Notifier.EventsCreated);
+        Assert.Equal("contact-form", created.SourceName);
+        var updated = Assert.Single(factory.Notifier.DeliveriesUpdated);
+        Assert.Equal(Core.Domain.DeliveryStatus.Delivered, updated.Status);
+
         // Same Idempotency-Key again -> queued again, but the worker ignores it (unique index on SourceId + ExternalId).
         var dupResponse = await client.SendAsync(Ingest("contact-form", apiKey, new { name = "Anna", email = "anna@example.com", message = "Do you build websites?" }, "form-0001"));
         Assert.Equal(HttpStatusCode.Accepted, dupResponse.StatusCode);
@@ -168,19 +81,29 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
         Assert.Empty(run.Deliveries);
         Assert.Single(factory.Connector.Sent);
 
-        // Inbox shows one event, delivered, with the correlation id of the original request.
+        // Inbox shows one event, delivered, with the correlation id of the original request, the source and destination names.
         var list = await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=websites");
         Assert.Equal(1, list.GetProperty("total").GetInt32());
         var item = list.GetProperty("items")[0];
         Assert.Equal("web", item.GetProperty("channel").GetString());
+        Assert.Equal("in", item.GetProperty("direction").GetString());
+        Assert.Equal("contact-form", item.GetProperty("sourceName").GetString());
         Assert.Equal(correlationId, item.GetProperty("correlationId").GetString());
         Assert.Equal("Delivered", item.GetProperty("deliveries")[0].GetProperty("status").GetString());
+        Assert.Equal("Discord for contact-form", item.GetProperty("deliveries")[0].GetProperty("destinationName").GetString());
+
+        // Status / direction filters.
+        Assert.Equal(1, (await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=websites&status=delivered")).GetProperty("total").GetInt32());
+        Assert.Equal(0, (await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=websites&status=deadlettered")).GetProperty("total").GetInt32());
+        Assert.Equal(0, (await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=websites&status=none")).GetProperty("total").GetInt32());
+        Assert.Equal(0, (await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=websites&direction=out")).GetProperty("total").GetInt32());
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/v1/events?status=bogus")).StatusCode);
     }
 
     [Fact]
     public async Task Failing_destination_backs_off_dead_letters_alerts_and_can_be_replayed()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateOwnerClientAsync();
         var (apiKey, _, _) = await ConfigureAsync(client, "flaky-form");
         factory.Alerts.Alerts.Clear();
 
@@ -202,9 +125,11 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
         var list = await client.GetFromJsonAsync<JsonElement>("/api/v1/events?q=Hello");
         var eventId = list.GetProperty("items")[0].GetProperty("id").GetInt64();
         var detail = await client.GetFromJsonAsync<JsonElement>($"/api/v1/events/{eventId}");
+        Assert.Equal("flaky-form", detail.GetProperty("sourceName").GetString());
         var delivery = detail.GetProperty("deliveries")[0];
         var deliveryId = delivery.GetProperty("id").GetInt64();
         Assert.Equal("DeadLettered", delivery.GetProperty("status").GetString());
+        Assert.Equal("Discord for flaky-form", delivery.GetProperty("destinationName").GetString());
         Assert.Equal(5, delivery.GetProperty("attemptCount").GetInt32());
         Assert.Equal(5, delivery.GetProperty("attempts").GetArrayLength());
         Assert.Equal(503, delivery.GetProperty("attempts")[0].GetProperty("httpStatus").GetInt32());
@@ -215,12 +140,14 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
         Assert.Contains($"Delivery {deliveryId} dead-lettered", alert.Title);
         Assert.Contains($"/api/v1/deliveries/{deliveryId}/replay", alert.Detail);
 
-        // Replay: one more attempt, history kept. The destination works again -> Delivered on attempt 6.
+        // Replay: one more attempt, history kept. The destination works again -> Delivered on attempt 6. Dashboards see Pending, then Delivered.
+        factory.Notifier.DeliveriesUpdated.Clear();
         var replay = await client.PostAsync($"/api/v1/deliveries/{deliveryId}/replay", null);
         Assert.Equal(HttpStatusCode.Accepted, replay.StatusCode);
         Assert.Equal("Pending", (await replay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
         var replayRun = await factory.RunWorkerAsync();
         Assert.Equal([DeliveryOutcome.Delivered], replayRun.Deliveries);
+        Assert.Equal([Core.Domain.DeliveryStatus.Pending, Core.Domain.DeliveryStatus.Delivered], factory.Notifier.DeliveriesUpdated.Where(d => d.DeliveryId == deliveryId).Select(d => d.Status));
 
         var after = await client.GetFromJsonAsync<JsonElement>($"/api/v1/deliveries/{deliveryId}");
         Assert.Equal("Delivered", after.GetProperty("status").GetString());
@@ -234,7 +161,7 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
     [Fact]
     public async Task Stale_retry_message_is_skipped_after_a_replay_overtook_it()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateOwnerClientAsync();
         var (apiKey, _, _) = await ConfigureAsync(client, "stale-form");
 
         factory.Connector.FailWithStatus = 500;
@@ -266,18 +193,19 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
     [Fact]
     public async Task Wrong_api_key_is_rejected_and_wrong_source_key_is_dropped_by_the_worker()
     {
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateOwnerClientAsync();
         var (apiKey, _, _) = await ConfigureAsync(client, "guarded-form");
         var before = (await client.GetFromJsonAsync<JsonElement>("/api/v1/events")).GetProperty("total").GetInt32();
         factory.Queues.Incoming.Clear();
 
-        // Forged signature: rejected at the edge, nothing queued.
-        var forged = await client.SendAsync(Ingest("guarded-form", "src_000000000000_00000000000000000000000000000000", new { name = "Mallory", message = "forged" }));
+        // Forged signature: rejected at the edge, nothing queued. Hooks never need a bearer.
+        using var anonymous = factory.CreateClient();
+        var forged = await anonymous.SendAsync(Ingest("guarded-form", "src_000000000000_00000000000000000000000000000000", new { name = "Mallory", message = "forged" }));
         Assert.Equal(HttpStatusCode.Unauthorized, forged.StatusCode);
         Assert.Empty(factory.Queues.Incoming);
 
         // Valid key used on another source's URL: accepted at the edge (no DB on the hot path), dropped by the worker.
-        var mismatched = await client.SendAsync(Ingest("contact-form", apiKey, new { name = "Mallory", message = "wrong door" }));
+        var mismatched = await anonymous.SendAsync(Ingest("contact-form", apiKey, new { name = "Mallory", message = "wrong door" }));
         Assert.Equal(HttpStatusCode.Accepted, mismatched.StatusCode);
         var run = await factory.RunWorkerAsync();
         Assert.Equal([IncomingOutcome.Dropped], run.Incoming);
@@ -285,10 +213,10 @@ public class IngestFlowTests(SqlServerApiFactory factory) : IClassFixture<SqlSer
         // Not JSON object / too large: rejected at the edge.
         using var array = new HttpRequestMessage(HttpMethod.Post, "/api/v1/hooks/guarded-form") { Content = JsonContent.Create(new[] { 1, 2 }) };
         array.Headers.Add("X-Api-Key", apiKey);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.SendAsync(array)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await anonymous.SendAsync(array)).StatusCode);
         using var huge = new HttpRequestMessage(HttpMethod.Post, "/api/v1/hooks/guarded-form") { Content = JsonContent.Create(new { message = new string('x', 40_000) }) };
         huge.Headers.Add("X-Api-Key", apiKey);
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await client.SendAsync(huge)).StatusCode);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, (await anonymous.SendAsync(huge)).StatusCode);
 
         var after = (await client.GetFromJsonAsync<JsonElement>("/api/v1/events")).GetProperty("total").GetInt32();
         Assert.Equal(before, after);

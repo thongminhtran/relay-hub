@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\RelayHub.Core\RelayHub.Core.csproj" />
     <ProjectReference Include="..\..\src\RelayHub.Infrastructure\RelayHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\RelayHub.Api\RelayHub.Api.csproj" />
   </ItemGroup>
 
 </Project>
