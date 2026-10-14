@@ -30,8 +30,11 @@ public sealed class RelayHubDbContext(DbContextOptions<RelayHubDbContext> option
         {
             e.Property(x => x.Name).HasMaxLength(100);
             e.Property(x => x.KeyId).HasMaxLength(32);
+            e.Property(x => x.ExternalAccountId).HasMaxLength(200);
             e.HasIndex(x => x.KeyId).IsUnique();
             e.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
+            // Provider webhooks (Meta, email) are matched to a source by account id; unique so a Page can only be connected once.
+            e.HasIndex(x => new { x.Type, x.ExternalAccountId }).IsUnique().HasFilter("[ExternalAccountId] IS NOT NULL");
             e.HasQueryFilter(x => _workspace.WorkspaceId == null || x.WorkspaceId == _workspace.WorkspaceId);
         });
 

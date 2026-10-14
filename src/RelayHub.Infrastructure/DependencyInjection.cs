@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using RelayHub.Core.Abstractions;
 using RelayHub.Core.Messaging;
 using RelayHub.Infrastructure.Alerts;
@@ -31,6 +32,8 @@ public static class DependencyInjection
 
         services.AddHttpClient<DiscordConnector>(client => client.Timeout = TimeSpan.FromSeconds(10));
         services.AddScoped<IDestinationConnector>(sp => sp.GetRequiredService<DiscordConnector>());
+        // Live dashboard updates are optional; the SignalR implementation replaces this when configured (TryAdd keeps the override).
+        services.TryAddSingleton<IRealtimeNotifier, NullRealtimeNotifier>();
         services.AddScoped<DeliveryDispatcher>();
         services.AddScoped<IncomingProcessor>();
         services.AddScoped<DeliveryProcessor>();

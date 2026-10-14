@@ -20,6 +20,8 @@ public static class QueueJson
 /// <param name="SourceKey">The {sourceKey} from the URL; must match the source's name or the message is dropped.</param>
 /// <param name="ExternalId">Idempotency-Key (or a generated id). Unique per source = at-least-once made safe.</param>
 /// <param name="TraceParent">W3C traceparent of the API request, so the worker's spans join the same trace.</param>
+/// <param name="Kind">Which hook accepted the payload (see <see cref="IncomingKinds"/>); the worker picks the parser from it.
+/// Provider hooks (meta, telegram, email) carry no API key: KeyId is empty and the worker finds the source by ExternalAccountId / SourceKey.</param>
 public sealed record IncomingMessage(
     string KeyId,
     string SourceKey,
@@ -27,7 +29,20 @@ public sealed record IncomingMessage(
     string PayloadJson,
     DateTimeOffset ReceivedAt,
     string CorrelationId,
-    string? TraceParent);
+    string? TraceParent,
+    string Kind = IncomingKinds.Generic);
+
+public static class IncomingKinds
+{
+    /// <summary>POST /api/v1/hooks/{sourceKey} with X-Api-Key (website form and any custom source).</summary>
+    public const string Generic = "generic";
+    /// <summary>POST /api/v1/hooks/meta — one Meta webhook batch (Facebook Page + Instagram), signature already verified.</summary>
+    public const string Meta = "meta";
+    /// <summary>POST /api/v1/hooks/telegram/{sourceKey} — one Telegram Update, secret token already verified.</summary>
+    public const string Telegram = "telegram";
+    /// <summary>POST /api/v1/hooks/email — one inbound email forwarded by the Cloudflare Email Worker, HMAC already verified.</summary>
+    public const string Email = "email";
+}
 
 /// <summary>
 /// One attempt of one delivery, carried by the <c>deliveries</c> queue. Retries re-enqueue it with a visibility delay;

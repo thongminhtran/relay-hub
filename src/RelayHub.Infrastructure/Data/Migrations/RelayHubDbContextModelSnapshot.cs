@@ -278,8 +278,16 @@ namespace RelayHub.Infrastructure.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("ConfigJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("ExternalAccountId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");
@@ -304,6 +312,10 @@ namespace RelayHub.Infrastructure.Data.Migrations
 
                     b.HasIndex("KeyId")
                         .IsUnique();
+
+                    b.HasIndex("Type", "ExternalAccountId")
+                        .IsUnique()
+                        .HasFilter("[ExternalAccountId] IS NOT NULL");
 
                     b.HasIndex("WorkspaceId", "Name")
                         .IsUnique();

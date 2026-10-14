@@ -27,6 +27,13 @@ public sealed class Source
     public required string Name { get; set; }
     /// <summary>Public part of the stateless signed API key (see ApiKeys).</summary>
     public required string KeyId { get; set; }
+    /// <summary>
+    /// Provider account this source listens to, used by the worker to find the source for a webhook that carries no API key:
+    /// Facebook Page id, Instagram professional account id, Telegram bot id, or the inbound email address. Null for generic sources.
+    /// </summary>
+    public string? ExternalAccountId { get; set; }
+    /// <summary>Channel credentials and settings as JSON (masked in API responses), e.g. {"pageAccessToken": "..."} or {"botToken": "..."}.</summary>
+    public string ConfigJson { get; set; } = "{}";
     public bool IsEnabled { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
