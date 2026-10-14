@@ -25,6 +25,8 @@ public static class IngestEndpoints
            .ProducesProblem(StatusCodes.Status400BadRequest)
            .ProducesProblem(StatusCodes.Status401Unauthorized)
            .ProducesProblem(StatusCodes.Status413PayloadTooLarge);
+        // Provider webhooks (Meta, Telegram, email) live next to the generic hook; literal segments win over {sourceKey} in routing.
+        app.MapProviderHookEndpoints();
         return app;
     }
 
