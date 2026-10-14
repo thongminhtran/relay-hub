@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using RelayHub.Core.Abstractions;
 using RelayHub.Core.Domain;
 using RelayHub.Core.Messaging;
 using RelayHub.Infrastructure.Data;
@@ -27,6 +28,7 @@ public sealed class IncomingProcessor(
     AmbientWorkspace ambient,
     DeliveryDispatcher dispatcher,
     IRelayQueues queues,
+    IRealtimeNotifier realtime,
     ILogger<IncomingProcessor> log)
 {
     private const int MaxTextLength = 4000;
@@ -111,6 +113,7 @@ public sealed class IncomingProcessor(
         }
 
         log.LogInformation("Event {EventId} stored from {Source} ({Channel}); {Deliveries} deliveries queued", evt.Id, source.Name, evt.Channel, deliveries.Count);
+        await realtime.EventCreatedAsync(evt, source.Name, ct);
         return IncomingOutcome.Stored;
     }
 

@@ -10,6 +10,7 @@ public sealed class RelayHubDbContext(DbContextOptions<RelayHubDbContext> option
     private readonly ICurrentWorkspace _workspace = workspace;
 
     public DbSet<Workspace> Workspaces => Set<Workspace>();
+    public DbSet<User> Users => Set<User>();
     public DbSet<Source> Sources => Set<Source>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<Destination> Destinations => Set<Destination>();
@@ -24,6 +25,15 @@ public sealed class RelayHubDbContext(DbContextOptions<RelayHubDbContext> option
         {
             e.Property(x => x.Name).HasMaxLength(100);
             e.Property(x => x.RetryProfile).HasMaxLength(50);
+        });
+
+        // No workspace filter: login looks a user up by email before any workspace is known; the token then scopes everything else.
+        b.Entity<User>(e =>
+        {
+            e.Property(x => x.Email).HasMaxLength(200);
+            e.Property(x => x.PasswordHash).HasMaxLength(500);
+            e.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+            e.HasIndex(x => x.Email).IsUnique();
         });
 
         b.Entity<Source>(e =>

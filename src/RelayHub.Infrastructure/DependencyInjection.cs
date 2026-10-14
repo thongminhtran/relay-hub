@@ -10,6 +10,7 @@ using RelayHub.Infrastructure.Data;
 using RelayHub.Infrastructure.Dispatch;
 using RelayHub.Infrastructure.Messaging;
 using RelayHub.Infrastructure.Processing;
+using RelayHub.Infrastructure.Realtime;
 
 namespace RelayHub.Infrastructure;
 
@@ -41,7 +42,7 @@ public static class DependencyInjection
         return services;
     }
 
-    /// <summary>Storage Queues (section "Storage") and operator alerts ("RelayHub:OpsDiscordWebhookUrl").</summary>
+    /// <summary>Storage Queues (section "Storage"), operator alerts ("RelayHub:OpsDiscordWebhookUrl") and live dashboard updates (section "SignalR").</summary>
     public static IServiceCollection AddRelayHubMessaging(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
@@ -49,6 +50,17 @@ public static class DependencyInjection
 
         services.Configure<OpsAlertOptions>(configuration.GetSection(OpsAlertOptions.SectionName));
         services.AddHttpClient<IOpsAlerts, DiscordOpsAlerts>(client => client.Timeout = TimeSpan.FromSeconds(10));
+
+        // Azure SignalR (serverless) is optional: SignalR:Endpoint (identity) or SignalR:ConnectionString (local). Unset → the NullRealtimeNotifier
+        // registered by AddRelayHubInfrastructure stays, and the API answers 503 realtime-unavailable on negotiate.
+        var signalR = configuration.GetSection(SignalROptions.SectionName);
+        services.Configure<SignalROptions>(signalR);
+        if (!string.IsNullOrWhiteSpace(signalR[nameof(SignalROptions.Endpoint)]) || !string.IsNullOrWhiteSpace(signalR[nameof(SignalROptions.ConnectionString)]))
+        {
+            services.AddSingleton<SignalRRealtimeNotifier>();
+            services.Replace(ServiceDescriptor.Singleton<IRealtimeNotifier>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>()));
+            services.AddSingleton<IRealtimeNegotiator>(sp => sp.GetRequiredService<SignalRRealtimeNotifier>());
+        }
 
         return services;
     }

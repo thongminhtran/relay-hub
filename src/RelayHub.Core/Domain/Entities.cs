@@ -8,6 +8,9 @@ public enum MessageDirection { In = 0, Out = 1 }
 
 public enum DeliveryStatus { Pending = 0, Delivered = 1, Retrying = 2, DeadLettered = 3 }
 
+/// <summary>Owner = Tim (full control of the Studio workspace); Demo = anonymous visitor of the public Demo workspace (read + mocked actions).</summary>
+public enum UserRole { Owner = 0, Demo = 1 }
+
 /// <summary>An isolated set of sources, routes and data ("Studio" = real, "Demo" = public sandbox).</summary>
 public sealed class Workspace
 {
@@ -15,6 +18,18 @@ public sealed class Workspace
     public required string Name { get; set; }
     public bool IsDemo { get; set; }
     public string RetryProfile { get; set; } = "default";
+}
+
+/// <summary>A dashboard login. One user belongs to exactly one workspace; the JWT carries both (claims sub + ws).</summary>
+public sealed class User
+{
+    public int Id { get; set; }
+    public required string Email { get; set; }
+    /// <summary>Microsoft.AspNetCore.Identity PasswordHasher format (PBKDF2, versioned). No full Identity framework.</summary>
+    public required string PasswordHash { get; set; }
+    public UserRole Role { get; set; } = UserRole.Owner;
+    public int WorkspaceId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 /// <summary>Where messages come from (a website form, an Instagram account, ...).</summary>
