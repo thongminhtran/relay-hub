@@ -85,6 +85,9 @@ param resendApiKey string = ''
 param resendFrom string = ''
 
 // ---- Weeks 3/4: realtime + dashboard hosting ----
+@description('Deploy Azure SignalR Service. Off by default: the subscription must first register the Microsoft.SignalRService resource provider (portal → Subscription → Resource providers → Register; the GitHub deploy identity is only a Contributor on the resource group and cannot do it). Without it the API answers 503 realtime-unavailable and the dashboard shows a Refresh button.')
+param deploySignalR bool = false
+
 @description('Region for Azure SignalR Service. Defaults to the API region here; main.bicepparam puts it in canadacentral next to SQL and the worker (env SIGNALR_LOCATION).')
 param signalRLocation string = location
 
@@ -344,7 +347,7 @@ resource swa 'Microsoft.Web/staticSites@2024-04-01' = {
 // Serverless = no hub server: the API answers /api/v1/realtime/negotiate and both apps push through the Management SDK (REST),
 // authenticated with their managed identities (SignalR__Endpoint only, no connection string). Local auth (access keys) stays on
 // so a developer can still use SignalR:ConnectionString locally; nothing in Azure uses the keys.
-resource signalr 'Microsoft.SignalRService/signalR@2024-03-01' = {
+resource signalr 'Microsoft.SignalRService/signalR@2024-03-01' = if (deploySignalR) {
   name: 'sigr-${suffix}-${unique}' // the hostname <name>.service.signalr.net is global, like the Key Vault / storage names
   location: signalRLocation
   tags: tags
@@ -401,8 +404,7 @@ resource api 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'RelayHub__OwnerEmail', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretOwnerEmail.name})' }
         { name: 'RelayHub__OwnerPassword', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretOwnerPassword.name})' }
         { name: 'RelayHub__DashboardOrigin', value: 'https://${swa.properties.defaultHostname}' }
-        { name: 'SignalR__Endpoint', value: 'https://${signalr.properties.hostName}' }
-      ], opsWebhookSettings, apiOptionalSecretSettings, resendFromSettings)
+      ], signalRSettings, opsWebhookSettings, apiOptionalSecretSettings, resendFromSettings)
     }
   }
   // The optional secrets are only referenced by name inside the settings: make sure they exist before the app first resolves them.
@@ -457,9 +459,7 @@ resource worker 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
         { name: 'ConnectionStrings__RelayHub', value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=${secretSqlConnection.name})' }
         { name: 'Storage__QueueServiceUri', value: 'https://${storage.name}.queue.${environment().suffixes.storage}' }
-        // Week 3: the worker pushes eventCreated / deliveryUpdated to the dashboard through the same SignalR resource.
-        { name: 'SignalR__Endpoint', value: 'https://${signalr.properties.hostName}' }
-      ], opsWebhookSettings, workerOptionalSecretSettings, resendFromSettings)
+      ], signalRSettings, opsWebhookSettings, workerOptionalSecretSettings, resendFromSettings)
     }
   }
   dependsOn: [secretResendApiKey]
@@ -517,6 +517,11 @@ resource workerManagesStorageAccount 'Microsoft.Authorization/roleAssignments@20
   properties: { roleDefinitionId: roleStorageAccountContributor, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
 }
 
+// Both apps read SignalR__Endpoint only when the resource is deployed (the Management SDK is skipped and the NullRealtimeNotifier stays otherwise).
+var signalRSettings = deploySignalR ? [
+  { name: 'SignalR__Endpoint', value: 'https://${signalr!.properties.hostName}' }
+] : []
+
 // ---------- RBAC: both identities push to SignalR with DefaultAzureCredential (Management SDK, serverless mode) ----------
 // Role id copied from https://learn.microsoft.com/azure/role-based-access-control/built-in-roles/web-and-mobile#signalr-service-owner
 // (never typed from memory — see the build journal). Which role: https://learn.microsoft.com/azure/azure-signalr/signalr-howto-authorize-managed-identity
@@ -527,13 +532,13 @@ resource workerManagesStorageAccount 'Microsoft.Authorization/roleAssignments@20
 // (420fcaa2-552c-430f-98ca-3264be4806c7) lacks hub/group/user, so neither alone is enough for negotiate + send.
 var roleSignalRServiceOwner = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7e4f1700-ea5a-4f59-8f37-079cfe29dce3')
 
-resource apiUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource apiUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySignalR) {
   name: guid(signalr.id, api.id, roleSignalRServiceOwner)
   scope: signalr
   properties: { roleDefinitionId: roleSignalRServiceOwner, principalId: api.identity.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource workerUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource workerUsesSignalR 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deploySignalR) {
   name: guid(signalr.id, worker.id, roleSignalRServiceOwner)
   scope: signalr
   properties: { roleDefinitionId: roleSignalRServiceOwner, principalId: worker.identity.principalId, principalType: 'ServicePrincipal' }
@@ -557,8 +562,8 @@ output sqlDatabaseName string = sqlDb.name
 output keyVaultName string = keyVault.name
 output storageAccountName string = storage.name
 output appInsightsName string = appInsights.name
-output signalRName string = signalr.name
-output signalREndpoint string = 'https://${signalr.properties.hostName}'
+output signalRName string = deploySignalR ? signalr!.name : ''
+output signalREndpoint string = deploySignalR ? 'https://${signalr!.properties.hostName}' : ''
 output staticWebAppName string = swa.name
 output dashboardHostname string = swa.properties.defaultHostname
 output dashboardUrl string = 'https://${swa.properties.defaultHostname}'

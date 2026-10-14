@@ -61,6 +61,7 @@ jobs:
           EMAIL_INBOUND_SECRET: ${{ secrets.EMAIL_INBOUND_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM: ${{ vars.RESEND_FROM }}   # a sender address is not a secret: repo variable
+          DEPLOY_SIGNALR: ${{ vars.DEPLOY_SIGNALR }}   # 'true' once Microsoft.SignalRService is registered on the subscription (portal, one click)
         run: |
           out=$(az deployment group create -g "$RESOURCE_GROUP" -f infra/main.bicep -p infra/main.bicepparam --query properties.outputs -o json)
           echo "apiName=$(echo "$out" | jq -r .apiName.value)"           >> "$GITHUB_OUTPUT"

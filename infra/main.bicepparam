@@ -30,5 +30,6 @@ param resendFrom = readEnvironmentVariable('RESEND_FROM', '')
 
 // Weeks 3/4 — regions. SignalR goes next to SQL and the worker (Canada Central already accepted every tier on this subscription);
 // Static Web Apps is not offered in Canada at all (westus2, centralus, eastus2, westeurope, eastasia), and its content is global anyway.
+param deploySignalR = toLower(readEnvironmentVariable('DEPLOY_SIGNALR', 'false')) == 'true' // an unset repo variable arrives as an empty string, so no bool() cast // repo variable DEPLOY_SIGNALR=true once Microsoft.SignalRService is registered on the subscription
 param signalRLocation = readEnvironmentVariable('SIGNALR_LOCATION', 'canadacentral')
 param staticWebAppLocation = readEnvironmentVariable('STATIC_WEB_APP_LOCATION', 'eastus2')
