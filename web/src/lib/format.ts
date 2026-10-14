@@ -71,6 +71,16 @@ export function formatUntil(value: string | Date | null | undefined, nowMs = Dat
   return diff > 0 ? `in ${formatDuration(diff)}` : 'due now'
 }
 
+/** "7s", "1:05" or "1:02:03" — short countdown for retry schedules. */
+export function formatShortCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  if (total < 60) return `${total}s`
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`
+}
+
 /** hh:mm:ss for the reply-window countdown (hours may exceed 24). */
 export function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
