@@ -84,5 +84,8 @@ public static class DevSeeder
             await db.SaveChangesAsync();
             log.LogInformation("Seeded Discord destination and route for '{Source}'.", source.Name);
         }
+
+        // Public demo workspace: sources per channel, mocked destinations, sample conversations (Week 5).
+        await DemoSeeder.RunAsync(db, log);
     }
 }

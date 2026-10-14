@@ -61,9 +61,11 @@ public sealed class DeliveryProcessor(
 
         var route = delivery.RouteId is { } routeId ? await db.Routes.SingleOrDefaultAsync(r => r.Id == routeId, ct) : null;
         var text = TemplateRenderer.Render(route?.Template ?? Route.DefaultTemplate, TemplateValues.For(evt, source));
-        var retryProfile = (await db.Workspaces.SingleOrDefaultAsync(w => w.Id == msg.WorkspaceId, ct))?.RetryProfile;
+        var workspace = await db.Workspaces.SingleOrDefaultAsync(w => w.Id == msg.WorkspaceId, ct);
+        var retryProfile = workspace?.RetryProfile;
 
-        await dispatcher.AttemptAsync(delivery, destination, text, evt, retryProfile, ct);
+        // Demo workspaces never reach a real channel: the attempt goes to DemoSinkConnector (plan 9.3).
+        await dispatcher.AttemptAsync(delivery, destination, text, evt, retryProfile, mock: workspace?.IsDemo ?? false, ct);
 
         switch (delivery.Status)
         {

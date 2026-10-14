@@ -85,12 +85,14 @@ public static class DestinationEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> TestAsync(int id, RelayHubDbContext db, DeliveryDispatcher dispatcher, CancellationToken ct)
+    private static async Task<IResult> TestAsync(int id, RelayHubDbContext db, AmbientWorkspace ambient, DeliveryDispatcher dispatcher, CancellationToken ct)
     {
         var destination = await db.Destinations.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, ct);
         if (destination is null) return NotFound("Destination");
 
-        var result = await dispatcher.SendTestAsync(destination, ct);
+        // In a demo workspace the test message goes to the mock sink, never to the real channel.
+        var mock = await db.Workspaces.AsNoTracking().Where(w => w.Id == ambient.WorkspaceIdOrDefault()).Select(w => w.IsDemo).SingleOrDefaultAsync(ct);
+        var result = await dispatcher.SendTestAsync(destination, mock, ct);
         return Results.Ok(new { result.Succeeded, result.HttpStatus, result.Error });
     }
 
